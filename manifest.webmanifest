@@ -1,7 +1,7 @@
 {
   "id": "/toshi-diary/",
-  "name": "TOSHI HUB 新版",
-  "short_name": "HUB 新版",
+  "name": "PAPA HUB",
+  "short_name": "PAPA HUB",
   "lang": "ja",
   "start_url": "/toshi-diary/",
   "scope": "/toshi-diary/",
@@ -11,19 +11,19 @@
   "description": "予定・ToDo・日記をこの端末で使う新しいHUB入口。",
   "icons": [
     {
-      "src": "./hub-icon-192.png",
+      "src": "./papa-hub-icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "./hub-icon-512.png",
+      "src": "./papa-hub-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "./hub-icon-maskable-512.png",
+      "src": "./papa-hub-icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
