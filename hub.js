@@ -21,6 +21,7 @@ function itemRow(item){
  const content=node('div',undefined,'hub-row-content');content.append(node('div',item.title||'(件名なし)','hub-title'));
  const timing=item.type==='todo'?'期限 '+(C.deadline(item)||'未設定')+(item.deadlineTime?' '+item.deadlineTime:'')+(C.workStart(item)&&C.workStart(item)!==C.deadline(item)?'｜開始 '+C.workStart(item):''):item.type==='task'?'期限なし'+(item.scheduledDate?'｜実施 '+item.scheduledDate:''):(item.time&&item.endTime?item.time+'〜'+item.endTime:'')+(item.endDate&&item.endDate!==item.date?'｜終了 '+item.endDate:'');
  const meta=node('div',undefined,'muted');meta.append(projectTag(item),node('span',' '+timing+(item.source==='google'?'｜Google':'｜端末')));content.append(meta);
+ if(item.completionCorrection)content.append(node('p','本人確認で完了を補正。'+(item.completedDate?'実施日 '+item.completedDate:'実施日は不明のまま保持')+'。Google側は変更していません。','muted'));
  if(item.completionConflict)content.append(node('p','端末に残る過去の完了記録を保持しています。Googleの未完了表示と不一致です。実施日は補っていません。','diary-warning'));
  if(item.googleUnverified)content.append(node('p','今回のGoogle取得で未確認。削除・移動・アカウント変更の可能性があります。','diary-warning'));
  if(Array.isArray(item.metadataWarnings)&&item.metadataWarnings.length)content.append(node('p',item.metadataWarnings.filter(x=>typeof x==='string').join(' '),'diary-warning')); 
