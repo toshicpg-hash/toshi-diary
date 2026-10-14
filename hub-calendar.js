@@ -108,7 +108,7 @@
    * Original period tabs use deadlines, not scheduled dates. "week" preserves
    * the old inclusive today-through-today+7 interval (eight calendar dates).
    * "none" means no declared deadline; scheduled tasks still belong there.
-   * Original order and todo/task distinctions are retained. Invalid nonempty
+   * Todo/task distinctions are retained. Today comes first, then nearest dates. Invalid nonempty
    * deadline strings stay visible under all, never disguised as "no deadline".
    */
   function workRows(items, filters = {}, today) {
@@ -130,6 +130,18 @@
       if (period === 'week' && (!day(deadline) || deadline < today || deadline > last)) return;
       rows.push({ ...row, stable_key: stableKey(row, index, 'item') });
     });
+    if (today !== undefined) {
+      const base = Date.parse(today + 'T00:00:00Z');
+      const indexed = rows.map((row, index) => {
+        const deadline = C.deadline(row);
+        const start = C.workStart(row);
+        const date = day(deadline) ? deadline : !deadline && day(start) ? start : '';
+        const offset = date ? Date.parse(date + 'T00:00:00Z') - base : Infinity;
+        return { row, index, offset, distance: Math.abs(offset) };
+      });
+      indexed.sort((a, b) => a.distance - b.distance || (a.offset >= 0 ? 0 : 1) - (b.offset >= 0 ? 0 : 1) || a.index - b.index);
+      return indexed.map(x => x.row);
+    }
     return rows;
   }
 
