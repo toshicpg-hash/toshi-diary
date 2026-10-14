@@ -61,6 +61,7 @@
  function renderList(){
   const rows=el('diaryRows');rows.replaceChildren();
   const list=C.search(state.revisions,{month:el('diaryMonth').value,query:el('diarySearch').value,ascending:el('diaryOrder').value==='asc'}),heads=C.heads(state.revisions),counts=new Map();heads.forEach(r=>counts.set(r.entryId,(counts.get(r.entryId)||0)+1));
+  if(globalThis.CustomEvent)queueMicrotask(()=>document.dispatchEvent(new CustomEvent('hub-diary-records',{detail:{records:state.revisions}})));
   el('diaryCount').textContent=list.length+'件表示｜全体 '+new Set(heads.map(r=>r.entryId)).size+'件｜過去の編集履歴も保持';
   if(!list.length)rows.append(text('p','該当する日記はありません。','muted'));
   let previousMonth='';
