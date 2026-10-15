@@ -27,6 +27,20 @@
   }
   async get(id){return this.transaction(['attempts'],'readonly',(tx,done)=>{const q=tx.objectStore('attempts').get(id);q.onsuccess=()=>done(q.result||null);});}
   async rows(){return await this.transaction(['attempts'],'readonly',(tx,done)=>{const q=tx.objectStore('attempts').getAll();q.onsuccess=()=>done(q.result.sort((a,b)=>b.sequence-a.sequence));})||[];}
+  async testTarget(){return this.transaction(['settings'],'readonly',(tx,done)=>{const q=tx.objectStore('settings').get('flip8-test');q.onsuccess=()=>done(q.result||null);});}
+  async reserveTest(attemptId){
+   const value=await this.transaction(['settings','attempts'],'readwrite',(tx,done,fail)=>{
+    const settings=tx.objectStore('settings'),d=settings.get('device');d.onsuccess=()=>{const device=d.result;if(device?.name!=='Flip8'){fail(Error('送信テストはFlip8だけで行います'));return;}
+     const q=tx.objectStore('attempts').get(attemptId);q.onsuccess=()=>{const record=q.result?.record;try{HubProofCore.validate(record);}catch{fail(Error('確定した確認記録がありません'));return;}
+      if(record.device.id!==device.deviceId||record.device.name!=='Flip8'||!record.localSaveVerified){fail(Error('このFlip8の保存確認済み記録を選んでください'));return;}
+      const existing=settings.get('flip8-test');existing.onsuccess=()=>{if(existing.result){if(existing.result.attemptId!==attemptId||existing.result.deviceId!==device.deviceId){fail(Error('テストは選択済みの1件だけです。同じ記録から再試行してください'));return;}done(existing.result);return;}
+       const target={id:'flip8-test',attemptId,deviceId:device.deviceId};settings.add(target);done(target);
+      };
+     };
+    };
+   });
+   if(!value||JSON.stringify(await this.testTarget())!==JSON.stringify(value))throw Error('送信対象の読み戻しを確認できません');return value;
+  }
   async delivery(id,patch){return this.transaction(['delivery'],'readwrite',(tx,done,fail)=>{const s=tx.objectStore('delivery'),q=s.get(id);q.onsuccess=()=>{if(q.result?.fileId&&patch.fileId&&q.result.fileId!==patch.fileId){fail(Error('送信先の予約IDは変更しません'));return;}const value={...(q.result||{id}),...patch,id};s.put(value);done(value);};});}
   async reserveFile(id,candidate){return this.transaction(['delivery'],'readwrite',(tx,done)=>{const s=tx.objectStore('delivery'),q=s.get(id);q.onsuccess=()=>{if(q.result?.fileId){done(q.result.fileId);return;}s.put({...(q.result||{id}),fileId:candidate,state:'pending'});done(candidate);};});}
   async deliveryState(id){return this.transaction(['delivery'],'readonly',(tx,done)=>{const q=tx.objectStore('delivery').get(id);q.onsuccess=()=>done(q.result||null);});}

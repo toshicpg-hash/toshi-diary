@@ -10,8 +10,8 @@
    core.validate(record);if(running.has(record.attemptId))return running.get(record.attemptId);
    const work=execute(record);running.set(record.attemptId,work);work.finally(()=>running.delete(record.attemptId)).catch(()=>{});return work;
   }
-  async function execute(record){
-   const device=await store.settings();if(device?.deviceId!==record.device.id)throw failure('DIFFERENT_DEVICE');
+  async function session(){
+   if(approved()!==true)throw failure('TRANSMISSION_NOT_APPROVED');
    const grant=await authorize();if(typeof grant?.access_token!=='string'||!grant.access_token||!Number.isFinite(grant.expiresAt)||grant.expiresAt<=Date.now()||!String(grant.scope||'').split(/\s+/).includes(SCOPE))throw failure('DRIVE_AUTH_REQUIRED');
    const api=async(path,options={})=>{
     if(approved()!==true)throw failure('TRANSMISSION_NOT_APPROVED');
@@ -20,15 +20,43 @@
      if(!r.ok)throw failure('DRIVE_HTTP_ERROR',r.status);try{return await r.json();}catch{throw failure('DRIVE_RESPONSE_INVALID');}
     }finally{clearTimeout(timer);}
    };
-   const privateFile=(f,type)=>!!f&&f.mimeType===type&&f.ownedByMe===true&&f.shared===false&&f.trashed!==true&&Array.isArray(f.permissions)&&f.permissions.length===1&&f.permissions[0].type==='user'&&f.permissions[0].role==='owner';
-   const fields='id,mimeType,ownedByMe,shared,trashed,permissions(type,role),parents,appProperties';
+   return api;
+  }
+  const privateFile=(f,type)=>!!f&&f.mimeType===type&&f.ownedByMe===true&&f.shared===false&&f.trashed!==true&&Array.isArray(f.permissions)&&f.permissions.length===1&&f.permissions[0].type==='user'&&f.permissions[0].role==='owner';
+  const fields='id,name,mimeType,ownedByMe,shared,trashed,permissions(type,role),parents,appProperties';
+  async function discover(api){
+   const matches=[];let page='';do{const q="trashed = false and mimeType = 'application/vnd.google-apps.folder' and appProperties has { key='papaHubProof' and value='"+TAG+"' }";
+    const list=await api('drive/v3/files?'+new URLSearchParams({q,spaces:'drive',fields:'nextPageToken,files(id)',pageSize:'100',...(page?{pageToken:page}:{})}));matches.push(...(list.files||[]));page=list.nextPageToken||'';
+   }while(page);
+   if(matches.length>1)throw failure('FOLDER_AMBIGUOUS');return matches[0]?.id||null;
+  }
+  async function setup(){
+   if(approved()!==true)throw failure('TRANSMISSION_NOT_APPROVED');
+   const device=await store.settings();if(device?.name!=='Flip8')throw failure('FLIP8_TEST_ONLY');
+   const api=await session();let folder=(await store.deliveryState('folder'))?.fileId;
+   if(!folder){const found=await discover(api);let candidate=found;
+    if(!candidate){const generated=await api('drive/v3/files/generateIds?count=1&space=drive&type=files');candidate=generated.ids?.[0];if(typeof candidate!=='string'||!candidate)throw failure('FILE_ID_MISSING');}
+    folder=await store.reserveFile('folder',candidate);
+   }
+   if(typeof folder!=='string'||!folder)throw failure('FOLDER_INVALID');
+   const read=()=>api('drive/v3/files/'+encodeURIComponent(folder)+'?fields='+encodeURIComponent(fields));let fm;
+   try{fm=await read();}catch(e){if(e.status!==404)throw e;
+    // Only this explicit setup step may create a folder. A pre-reserved ID
+    // makes uncertain completion/retries and concurrent tabs idempotent.
+    try{await api('drive/v3/files?fields=id',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:folder,name:FOLDER,mimeType:'application/vnd.google-apps.folder',parents:['root'],appProperties:{papaHubProof:TAG}})});}catch(error){if(error.status!==409)throw error;}
+    fm=await read();
+   }
+   if(fm.id!==folder||fm.name!==FOLDER||!privateFile(fm,'application/vnd.google-apps.folder')||fm.appProperties?.papaHubProof!==TAG)throw failure('FOLDER_NOT_PRIVATE');
+   await store.delivery('folder',{fileId:folder,state:'confirmed'});if((await store.deliveryState('folder'))?.fileId!==folder)throw failure('LOCAL_DELIVERY_READBACK_FAILED');
+   return {ok:true,folderId:folder};
+  }
+  async function execute(record){
+   const device=await store.settings();if(device?.deviceId!==record.device.id)throw failure('DIFFERENT_DEVICE');
+   const api=await session();
    const meta=id=>api('drive/v3/files/'+encodeURIComponent(id)+'?fields='+encodeURIComponent(fields));
    try{
     let folder=(await store.deliveryState('folder'))?.fileId;
-    if(!folder){const matches=[];let page='';do{const q="trashed = false and mimeType = 'application/vnd.google-apps.folder' and appProperties has { key='papaHubProof' and value='"+TAG+"' }";
-     const list=await api('drive/v3/files?'+new URLSearchParams({q,spaces:'drive',fields:'nextPageToken,files(id)',pageSize:'100',...(page?{pageToken:page}:{})}));matches.push(...(list.files||[]));page=list.nextPageToken||'';
-    }while(page);
-     if(matches.length>1)throw failure('FOLDER_AMBIGUOUS');folder=matches[0]?.id;
+    if(!folder){folder=await discover(api);
      // Folder setup is a separate, explicitly approved, single-device step.
      // A retry never creates a destination implicitly (including across devices).
      if(!folder)throw failure('FOLDER_NOT_CONFIGURED');
@@ -49,7 +77,7 @@
     return {ok:true,fileId:id};
    }catch(e){await store.delivery(record.attemptId,{state:'pending',errorCode:['TRANSMISSION_NOT_APPROVED','FOLDER_AMBIGUOUS','FOLDER_NOT_CONFIGURED','FOLDER_INVALID','FOLDER_NOT_PRIVATE','FILE_ID_MISSING','LOCAL_DELIVERY_READBACK_FAILED','REMOTE_RECORD_IDENTITY_MISMATCH','REMOTE_RECORD_READBACK_MISMATCH','REMOTE_RECORD_NOT_FOUND','RECORD_TOO_LARGE'].includes(e.code)?e.code:'DRIVE_SEND_UNCONFIRMED'}).catch(()=>{});throw e;}
   }
-  return {send};
+  return {send,setup};
  }
  return {SCOPE,FOLDER,create};
 });

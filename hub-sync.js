@@ -4,7 +4,7 @@
  const buttons=[...document.querySelectorAll('[data-sync-all]')],box=document.getElementById('hubSyncAllStatus'),runner=HubSyncCore.create();
  let active=false,proofAttempt=null,proofStates=[];
  const text=(tag,value)=>{const n=document.createElement(tag);n.textContent=value;return n;};
- function show(states){proofStates=states;box.hidden=false;box.replaceChildren(text('h2','Googleまとめ同期'));for(const s of states)box.append(text('p',s.label+'：'+s.message));if(states.length&&states.every(x=>x.status==='success'))box.append(text('p','予定・ToDo・日記の同期が完了しました。'));else if(states.some(x=>x.status==='failed'||x.status==='skipped')&&!states.some(x=>x.status==='running'||x.status==='waiting'))box.append(text('p','未完了の項目があります。表示を確認して、もう一度同期してください。'));if(globalThis.HubProof)box.append(text('p','ナミ向け確認記録：Drive送信OFF。Google最新版との一致・画面表示は未確認です。'));}
+ function show(states){proofStates=states;box.hidden=false;box.replaceChildren(text('h2','Googleまとめ同期'));for(const s of states)box.append(text('p',s.label+'：'+s.message));if(states.length&&states.every(x=>x.status==='success'))box.append(text('p','予定・ToDo・日記の同期が完了しました。'));else if(states.some(x=>x.status==='failed'||x.status==='skipped')&&!states.some(x=>x.status==='running'||x.status==='waiting'))box.append(text('p','未完了の項目があります。表示を確認して、もう一度同期してください。'));if(globalThis.HubProof)box.append(text('p','ナミ向け確認記録：自動送信OFF。手動テストの結果はホームで確認できます。Google最新版との一致・画面表示は未確認です。'));}
  function lock(){for(const button of buttons){button.dataset.unverified=String(active);button.disabled=active||!HubApp.canWrite();}}
  async function syncAll(){
   if(active)return;

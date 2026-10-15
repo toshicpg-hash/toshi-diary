@@ -18,3 +18,6 @@
 .hub-unverified{margin:10px 0;padding:10px;border:1px solid #f3d09c;border-radius:10px;background:#fffbeb}.hub-unverified>summary{cursor:pointer;font-size:12px;color:#92400e;font-weight:650}.hub-unverified .hub-row{margin-top:8px}.hub-cell .month-unverified{white-space:normal;overflow-wrap:anywhere;font-size:9px;line-height:1.3;margin-top:4px;padding:2px;background:#fff7ed;color:#92400e;border-radius:3px}
 
 .hub-new-work-notice{padding:10px;border-radius:10px;background:#eff6ff;margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.hub-new-work-notice span{font-size:12px;color:#1e3a8a}.hub-new-work-badge{display:inline-block;padding:2px 7px;border-radius:999px;background:#dbeafe;color:#1e3a8a;font-size:11px;font-weight:650}.hub-row.work-highlight{outline:3px solid #2563eb;outline-offset:2px;scroll-margin-top:24px;scroll-margin-bottom:110px}
+.home-links button[data-home-go="calendar"]{background:#DFEDF9}
+.home-links button[data-home-go="work"]{background:#E1F1E8}
+.home-links button[data-home-go="gantt"]{background:#ECE5F7}
