@@ -1,6 +1,6 @@
 (function(){
  'use strict';
- const VERSION='1.2.16',store=new HubProofStore(),$=id=>document.getElementById(id);
+ const VERSION='1.2.17',store=new HubProofStore(),$=id=>document.getElementById(id);
  // Consent stays in memory for one explicitly selected Flip8 record only.
  // No persisted setting, restored backup or ordinary sync enables delivery.
  let selected=null,activeConsent=null,transport=null,sending=false,refreshSerial=0;
@@ -53,8 +53,8 @@
    const result=await resend(selected.attemptId);if(!result.ok)throw Error('TEST_NOT_CONFIRMED');
    $('hubProofTestStatus').textContent='この1件をDriveに保存し、読み戻しの一致を確認しました。閉じるとナミへ伝えるリンクが表示されます。自動送信はOFFです。';message('Flip8の1件をDriveへ保存・読み戻し確認済み。ナミの読取り・Google最新版との一致・画面表示は未確認です。');selected=null;
   }catch(e){
-   const known={FOLDER_NOT_PRIVATE:'本人だけの非公開フォルダと確認できません。共有設定は変更していません。',FOLDER_AMBIGUOUS:'専用フォルダが複数あるため停止しました。保存先の確認が必要です。',DRIVE_AUTH_REQUIRED:'必要なGoogle権限を確認できません。'};
-   $('hubProofTestStatus').textContent=(known[e.code]||'送信テストを完了したか確認できません。')+' 予定・日記は保持しています。閉じて、同じ1件から再試行できます。自動送信はOFFです。';message($('hubProofTestStatus').textContent);
+   const problem=HubProofDrive.describe(e,'LOCAL');
+   $('hubProofTestStatus').textContent=problem.message+' '+problem.detail+'。予定・日記は保持しています。閉じて、同じ1件から再試行できます。自動送信はOFFです。';message($('hubProofTestStatus').textContent);
   }finally{activeConsent=null;transport=null;sending=false;$('hubProofTestAgree').checked=false;testControls();await refresh();}
  };
  $('hubProofTestAgree').onchange=testControls;

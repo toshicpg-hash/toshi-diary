@@ -6,11 +6,11 @@ function covers(actual,required){const set=new Set(String(actual||'').split(/\s+
 function authorize(required=SCOPE){
  if(token&&Date.now()<expires&&covers(tokenScopes,required))return Promise.resolve();
  if(pending)return pending;
- if(!root.google?.accounts?.oauth2)return Promise.reject(Error('Google認証を読み込めません。通信を確認して再度お試しください。'));
- const request=new Promise((resolve,reject)=>{const fail=e=>reject(Error(e?.message||'Google接続を完了していません。端末のデータは保持しています。'));
+ if(!root.google?.accounts?.oauth2)return Promise.reject(Object.assign(Error('Google認証を読み込めません。通信を確認して再度お試しください。'),{code:'GOOGLE_AUTH_UNAVAILABLE'}));
+ const request=new Promise((resolve,reject)=>{const fail=e=>reject(Object.assign(Error(e?.message||'Google接続を完了していません。端末のデータは保持しています。'),{code:e?.type==='popup_failed_to_open'?'GOOGLE_POPUP_BLOCKED':e?.type==='popup_closed'?'GOOGLE_POPUP_CLOSED':'GOOGLE_AUTH_FAILED'}));
   try{client=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:required,callback:r=>{
-   if(r.error){reject(Error('Google認証: '+r.error));return;}
-   if(typeof r.access_token!=='string'||!r.access_token){reject(Error('Google接続の応答を確認できません'));return;}
+   if(r.error){reject(Object.assign(Error('Google認証: '+r.error),{code:r.error==='access_denied'?'GOOGLE_ACCESS_DENIED':r.error==='invalid_scope'?'GOOGLE_INVALID_SCOPE':'GOOGLE_AUTH_FAILED'}));return;}
+   if(typeof r.access_token!=='string'||!r.access_token){reject(Object.assign(Error('Google接続の応答を確認できません'),{code:'GOOGLE_AUTH_RESPONSE_INVALID'}));return;}
    token=r.access_token;expires=Date.now()+(Math.max(0,(Number(r.expires_in)||3600)-60))*1000;tokenScopes=typeof r.scope==='string'?r.scope:required===SCOPE?SCOPE:'';resolve();
   },error_callback:fail});client.requestAccessToken({prompt:required===SCOPE?'':'select_account'});}catch(e){fail(e);}
  });
