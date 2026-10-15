@@ -1,0 +1,70 @@
+name: Recover stuck PAPA HUB Pages deployment
+
+on:
+  workflow_dispatch:
+
+permissions:
+  pages: write
+
+concurrency:
+  group: papa-hub-pages-recovery
+  cancel-in-progress: false
+
+jobs:
+  cancel-stuck-deployment:
+    if: github.repository == 'toshicpg-hash/toshi-diary' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Cancel only the known stuck 1.2.16 deployment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, time
+          from urllib.request import Request, urlopen
+          from urllib.error import HTTPError
+
+          # Fixed repository and deployment. No inputs, checkout, Google access,
+          # app writes, permission changes, artifact deletion or new deployment.
+          target = 'https://api.github.com/repos/toshicpg-hash/toshi-diary/pages/deployments/ceb3369d6cd332c695a31789ba66d2370680ff39'
+          headers = {
+              'Authorization': 'Bearer ' + os.environ['GITHUB_TOKEN'],
+              'Accept': 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+          }
+          def request(method, url):
+              req = Request(url, data=b'{}' if method == 'POST' else None,
+                            headers=headers, method=method)
+              try:
+                  with urlopen(req, timeout=30) as response:
+                      body = response.read()
+                      return json.loads(body) if body else {}
+              except HTTPError as error:
+                  raise SystemExit('Recovery API request failed: HTTP ' + str(error.code)) from None
+
+          finished = {'succeed', 'deployment_cancelled', 'deployment_failed',
+                      'deployment_content_failed', 'deployment_lost'}
+          waiting = {'', 'deployment_in_progress', 'updating_pages', 'queued',
+                     'pending', 'deployment_pending', 'deployment_queued',
+                     'deployment_attempt_error', 'waiting'}
+          before = request('GET', target).get('status')
+          if before in finished:
+              print('Known deployment is no longer active. No cancellation sent.')
+          elif before not in waiting:
+              raise SystemExit('Unknown deployment status; cancellation not sent.')
+          else:
+              request('POST', target + '/cancel')
+              print('Cancellation requested for the fixed deployment only.')
+              for _ in range(12):
+                  time.sleep(5)
+                  after = request('GET', target).get('status')
+                  if after in finished:
+                      print('Known deployment no longer active. Publication must be retried and verified separately.')
+                      break
+                  if after not in waiting:
+                      raise SystemExit('Unknown status after cancellation; recovery unconfirmed.')
+              else:
+                  raise SystemExit('Cancellation was requested, but recovery is still unconfirmed.')
+          PY
