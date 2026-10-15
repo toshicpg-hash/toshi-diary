@@ -102,15 +102,15 @@
  }
  async function synchronize(){
   if(syncing||!ready)return {ok:false,message:'日記は準備中または同期中です'};const id=state.meta.sheet;if(!id){showError(Error('先に自分の日記台帳を設定してください'));return {ok:false,message:'日記台帳が未設定です'};}
-  syncing=true;problem='';renderState();
+  const evidence={fetch:'not_attempted',save:'not_attempted',readback:'not_attempted',sheetId:id,revisionIds:[]};syncing=true;problem='';renderState();
   try{
-   const remote=await readRemote(id);await write(remote);await reload();
+   const remote=await readRemote(id);evidence.fetch='success';await write(remote);await reload();
    const remoteMap=new Map(remote.map(r=>[r.revisionId,r])),pending=state.revisions.filter(r=>!remoteMap.has(r.revisionId));
    for(let offset=0;offset<pending.length;offset+=20){const batch=pending.slice(offset,offset+20);await api(encodeURIComponent(id)+'/values/'+encodeURIComponent("'日記履歴'!A:N")+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({majorDimension:'ROWS',values:batch.map(C.toRow)})});}
    const verified=await readRemote(id),verifiedMap=new Map(verified.map(r=>[r.revisionId,r]));
    for(const r of pending)if(!verifiedMap.has(r.revisionId)||C.canonical(r)!==C.canonical(verifiedMap.get(r.revisionId)))throw Error('Googleへの保存を確認できません。端末の記録は保持し、未同期のままにします');
-   await write(verified,{['remote:'+id]:{at:new Date().toISOString(),ids:[...verifiedMap.keys()]}});await reload();channel?.postMessage('changed');return {ok:true,message:'日記の同期・読み取り照合が完了しました'};
-  }catch(error){problem='同期失敗・未確認：'+error.message;try{await reload();}catch{} return {ok:false,message:problem};}
+   await write(verified,{['remote:'+id]:{at:new Date().toISOString(),ids:[...verifiedMap.keys()]}});evidence.save='success';await reload();const disk=new Map(state.revisions.map(r=>[r.revisionId,r]));for(const r of verified)if(!disk.has(r.revisionId)||C.canonical(disk.get(r.revisionId))!==C.canonical(r))throw Error('端末の日記の読み戻しが一致しません');evidence.readback='success';evidence.verifiedAt=new Date().toISOString();evidence.revisionIds=verified.map(r=>r.revisionId);channel?.postMessage('changed');return {ok:true,message:'日記の同期・読み取り照合が完了しました',evidence};
+  }catch(error){if(evidence.fetch!=='success')evidence.fetch='failed';else if(evidence.save!=='success')evidence.save='failed';else evidence.readback='failed';problem='同期失敗・未確認：'+error.message;try{await reload();}catch{} return {ok:false,message:problem,evidence};}
   finally{syncing=false;renderState();}
  }
  function connect(){

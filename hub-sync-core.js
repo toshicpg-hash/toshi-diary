@@ -16,7 +16,7 @@
      const job=jobs[i],s=states[i];if(!job.eligible)continue;
      if(!job.scopes.every(scope=>allowed.has(scope))){s.status='failed';s.message='必要なGoogle接続を確認できません。端末の記録は保持しています';emit();continue;}
      s.status='running';s.message='同期中…';emit();
-     try{const result=await job.sync(grant);s.status=result?.ok===true?'success':'failed';s.message=result?.message||(s.status==='success'?'同期完了':'同期を確認できません。記録は保持しています');}
+     try{const result=await job.sync(grant);s.evidence=result?.evidence||null;s.status=result?.ok===true?'success':'failed';s.message=result?.message||(s.status==='success'?'同期完了':'同期を確認できません。記録は保持しています');}
      catch(error){s.status='failed';s.message='同期失敗・未確認：'+error.message;}
      emit();
     }
