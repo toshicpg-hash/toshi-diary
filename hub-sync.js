@@ -14,7 +14,7 @@
    const from=document.getElementById('hubSyncFrom').value,to=document.getElementById('hubSyncTo').value;
    const calendarEligible=HubCore.day(from)&&HubCore.day(to)&&from<=to;
    const diaryEligible=!!diary?.ready&&!!diary.configured&&!diary.busy;
-   await runner.run({jobs:[
+   await runner.run({concurrent:true,jobs:[
     {key:'calendar',label:'予定・ToDo',eligible:calendarEligible,reason:'同期する期間を確認してください',scopes:HubGoogle.SCOPE.split(/\s+/),sync:()=>HubApp.syncCalendar()},
     {key:'diary',label:'日記',eligible:diaryEligible,reason:!diary?.ready?'保存領域の準備中です。完了後にもう一度同期してください':!diary.configured?'台帳未設定です。日記画面で設定してください':'日記の処理中です。完了を待ってください',scopes:[globalThis.HubDiarySync?.SCOPE||''],sync:grant=>HubDiarySync.syncWithGrant(grant)}
    ],authorize:eligible=>HubGoogle.connectForSync({calendar:eligible.some(x=>x.key==='calendar'),diary:eligible.some(x=>x.key==='diary'),proof:globalThis.HubProof?.transmissionApproved()===true}),onChange:show});
