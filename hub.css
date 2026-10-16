@@ -21,3 +21,6 @@
 .home-links button[data-home-go="calendar"]{background:#DFEDF9}
 .home-links button[data-home-go="work"]{background:#E1F1E8}
 .home-links button[data-home-go="gantt"]{background:#ECE5F7}
+
+/* Keep the longer diary label inside its existing navigation cell. */
+.hub-nav [data-panel=diary]{white-space:normal;overflow-wrap:anywhere}

@@ -28,7 +28,7 @@
  function setForm(record=null,parents=null){
   editing=record;editParents=parents;
   const values=record||{date:today()};for(const [k,id] of Object.entries(fields))el(id).value=values[k]||'';
-  el('diaryEditorTitle').textContent=record?'日記を追記・編集':'今日のひとこと';
+  el('diaryEditorTitle').textContent=record?'ダイアリーを追記・編集':'今日のひとこと';
   el('diaryEditMeta').textContent=record?'入力 '+new Date(record.createdAt).toLocaleString('ja-JP')+'｜更新 '+new Date(record.updatedAt).toLocaleString('ja-JP')+'｜出来事の日付とは別に保持':'';
   el('diaryExtras').open=!!(record&&(record.people||record.golfGood||record.golfImprove||record.golfNext));
   el('diaryDraftStatus').textContent='';el('diaryFormStatus').textContent='';renderRelated();
@@ -36,10 +36,10 @@
  async function startNew(){if(dirty()&&!confirm('書きかけの内容を閉じて、新しく書きますか？'))return;clearTimeout(draftTimer);draftGeneration++;setForm();await write([],{draft:null});}
  function queueDraft(){
   if(!ready||saving)return;const generation=++draftGeneration;clearTimeout(draftTimer);
-  draftTimer=setTimeout(async()=>{const draft={fields:readFields(),baseRevisionId:editing?.revisionId||null,parents:editParents,at:new Date().toISOString()};try{await write([],{draft});if(generation===draftGeneration)el('diaryDraftStatus').textContent='書きかけをこの端末に保存済み（日記未登録・未共有）';}catch(e){el('diaryDraftStatus').textContent='書きかけを保存できません。入力欄は残しています：'+e.message;}},500);
+  draftTimer=setTimeout(async()=>{const draft={fields:readFields(),baseRevisionId:editing?.revisionId||null,parents:editParents,at:new Date().toISOString()};try{await write([],{draft});if(generation===draftGeneration)el('diaryDraftStatus').textContent='書きかけをこの端末に保存済み（ダイアリー未登録・未共有）';}catch(e){el('diaryDraftStatus').textContent='書きかけを保存できません。入力欄は残しています：'+e.message;}},500);
  }
  async function saveDiary(e){
-  e.preventDefault();if(!ready||saving)return;if(editing&&!dirty()&&!editParents){el('diaryFormStatus').textContent='変更はありません。保存済みの日記を保持しています。';return;}
+  e.preventDefault();if(!ready||saving)return;if(editing&&!dirty()&&!editParents){el('diaryFormStatus').textContent='変更はありません。保存済みのダイアリーを保持しています。';return;}
   let record;try{record=C.create(readFields(),{base:editing,parents:editParents,deviceId:state.meta.deviceId});}catch(error){showError(error);return;}
   saving=true;clearTimeout(draftTimer);draftGeneration++;el('diaryFormStatus').textContent='端末へ保存中…';renderState();
   for(const id of Object.values(fields))el(id).disabled=true;
@@ -47,14 +47,14 @@
   catch(error){showError(error);}finally{saving=false;for(const id of Object.values(fields))el(id).disabled=false;renderState();}
  }
  async function edit(record,resolve=false){
-  if(dirty()&&!confirm('書きかけを閉じて、この日記を編集しますか？'))return;
+  if(dirty()&&!confirm('書きかけを閉じて、このダイアリーを編集しますか？'))return;
   clearTimeout(draftTimer);draftGeneration++;
   const alternatives=C.heads(state.revisions).filter(r=>r.entryId===record.entryId);
   setForm(record,resolve?alternatives.map(r=>r.revisionId):null);
   if(resolve){el('diaryBody').value=alternatives.map(r=>'【同時編集の内容】\n'+shareText(r)).join('\n\n');el('diaryFormStatus').textContent='両方の内容を確認・整理して保存してください。元の文章は編集履歴に残ります。';}
   queueDraft();el('diaryEditor').scrollIntoView({behavior:'smooth',block:'start'});
  }
- function shareText(r){return [r.date+' '+(r.title||'日記'),r.body,r.people&&'一緒にいた人：'+r.people,r.golfGood&&'よかった点：'+r.golfGood,r.golfImprove&&'反省点：'+r.golfImprove,r.golfNext&&'次回試すこと：'+r.golfNext].filter(Boolean).join('\n');}
+ function shareText(r){return [r.date+' '+(r.title||'ダイアリー'),r.body,r.people&&'一緒にいた人：'+r.people,r.golfGood&&'よかった点：'+r.golfGood,r.golfImprove&&'反省点：'+r.golfImprove,r.golfNext&&'次回試すこと：'+r.golfNext].filter(Boolean).join('\n');}
  async function copyToNami(record,container){
   const value=shareText(record);try{await navigator.clipboard.writeText(value);container.append(text('p','コピーしました。ナミの会話に貼ってください。自動送信はしていません。','muted'));}catch{const area=document.createElement('textarea');area.value=value;area.readOnly=true;area.rows=5;container.append(text('p','コピーできませんでした。下の文章を選択して会話に貼ってください。','muted'),area);area.select();}
  }
@@ -63,12 +63,12 @@
   const list=C.search(state.revisions,{month:el('diaryMonth').value,query:el('diarySearch').value,ascending:el('diaryOrder').value==='asc'}),heads=C.heads(state.revisions),counts=new Map();heads.forEach(r=>counts.set(r.entryId,(counts.get(r.entryId)||0)+1));
   if(globalThis.CustomEvent)queueMicrotask(()=>document.dispatchEvent(new CustomEvent('hub-diary-records',{detail:{records:state.revisions}})));
   el('diaryCount').textContent=list.length+'件表示｜全体 '+new Set(heads.map(r=>r.entryId)).size+'件｜過去の編集履歴も保持';
-  if(!list.length)rows.append(text('p','該当する日記はありません。','muted'));
+  if(!list.length)rows.append(text('p','該当するダイアリーはありません。','muted'));
   let previousMonth='';
   for(const r of list){
    if(r.date.slice(0,7)!==previousMonth){previousMonth=r.date.slice(0,7);rows.append(text('h3',previousMonth.replace('-','年')+'月'));}
    const item=document.createElement('article'),conflict=counts.get(r.entryId)>1;item.className='diary-entry'+(conflict?' diary-conflict':'');item.dataset.diaryEntry=r.entryId;
-   item.append(text('div',r.date+'｜'+(r.source==='nami'?'ナミから追加':'日記'),'muted'),text('h3',r.title||'ひとこと'),text('div',r.body,'diary-text'));
+   item.append(text('div',r.date+'｜'+(r.source==='nami'?'ナミから追加':'ダイアリー'),'muted'),text('h3',r.title||'ひとこと'),text('div',r.body,'diary-text'));
    for(const [label,k] of [['一緒にいた人','people'],['よかった点','golfGood'],['反省点','golfImprove'],['次回試すこと','golfNext']])if(r[k])item.append(text('p',label+'\n'+r[k],'diary-text'));
    const ack=new Set(state.meta['remote:'+state.meta.sheet]?.ids||[]);item.append(text('div','入力 '+new Date(r.createdAt).toLocaleString('ja-JP')+'｜更新 '+new Date(r.updatedAt).toLocaleString('ja-JP')+'｜'+(ack.has(r.revisionId)?'前回Google照合済み':'端末のみ・未同期'),'muted'));
    if(conflict)item.append(text('p','同時編集あり。どちらの文章も残っています。','diary-warning'));
@@ -83,12 +83,12 @@
  }
  function renderRelated(){}
  async function setSheet(){
-  if(syncing)return;const id=sheetId(el('diarySheetUrl').value);if(!id){showError(Error('Google日記台帳のURLを入力してください'));return;}
-  if(state.meta.sheet&&state.meta.sheet!==id&&!confirm('同期先を変更しますか？\nhttps://docs.google.com/spreadsheets/d/'+id+'/edit\n端末の日記は残り、次回同期時に新しい台帳へも追加されます。'))return;
+  if(syncing)return;const id=sheetId(el('diarySheetUrl').value);if(!id){showError(Error('Googleダイアリー台帳のURLを入力してください'));return;}
+  if(state.meta.sheet&&state.meta.sheet!==id&&!confirm('同期先を変更しますか？\nhttps://docs.google.com/spreadsheets/d/'+id+'/edit\n端末のダイアリーは残り、次回同期時に新しい台帳へも追加されます。'))return;
   await write([],{sheet:id});token='';expires=0;problem='';await reload();
  }
  async function api(path,options={}){
-  if(!token||Date.now()>=expires){token='';throw Error('Google未接続です。もう一度「Googleで日記を同期」を押してください');}
+  if(!token||Date.now()>=expires){token='';throw Error('Google未接続です。もう一度「Googleでダイアリーを同期」を押してください');}
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),45000);
   let response;try{response=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+path,{...options,signal:controller.signal,headers:{Authorization:'Bearer '+token,...options.headers},cache:'no-store'});}catch(error){throw Error(error.name==='AbortError'?'通信が時間切れになりました。記録は保持しています。次回同期で送信済みか確認します':'通信できません。端末の記録は保持しています');}finally{clearTimeout(timer);}
   const body=await response.json().catch(()=>({}));if(!response.ok){if(response.status===401){token='';expires=0;}throw Error('Google HTTP '+response.status+'：'+(body.error?.message||'台帳の権限・Sheets APIの有効化を確認してください'));}return body;
@@ -96,12 +96,12 @@
  async function readRemote(id){
   const metadata=await api(encodeURIComponent(id)+'?fields=sheets.properties'),properties=metadata.sheets?.find(s=>s.properties.title==='日記履歴')?.properties;
   if(!properties)throw Error('「日記履歴」タブがありません。専用台帳を選んでください');
-  if(properties.gridProperties.rowCount>100000)throw Error('日記台帳が大きいため同期を停止しました。端末記録は保持しています');
+  if(properties.gridProperties.rowCount>100000)throw Error('ダイアリー台帳が大きいため同期を停止しました。端末記録は保持しています');
   const values=[];for(let row=1;row<=properties.gridProperties.rowCount;row+=500){const range="'日記履歴'!A"+row+':N'+Math.min(row+499,properties.gridProperties.rowCount),j=await api(encodeURIComponent(id)+'/values/'+encodeURIComponent(range)+'?valueRenderOption=UNFORMATTED_VALUE');values.push(...(j.values||[]));}
   return C.fromRows(values);
  }
  async function synchronize(){
-  if(syncing||!ready)return {ok:false,message:'日記は準備中または同期中です'};const id=state.meta.sheet;if(!id){showError(Error('先に自分の日記台帳を設定してください'));return {ok:false,message:'日記台帳が未設定です'};}
+  if(syncing||!ready)return {ok:false,message:'ダイアリーは準備中または同期中です'};const id=state.meta.sheet;if(!id){showError(Error('先に自分のダイアリー台帳を設定してください'));return {ok:false,message:'ダイアリー台帳が未設定です'};}
   const evidence={fetch:'not_attempted',save:'not_attempted',readback:'not_attempted',sheetId:id,revisionIds:[]};syncing=true;problem='';renderState();
   try{
    const remote=await readRemote(id);evidence.fetch='success';await write(remote);await reload();
@@ -109,37 +109,37 @@
    for(let offset=0;offset<pending.length;offset+=20){const batch=pending.slice(offset,offset+20);await api(encodeURIComponent(id)+'/values/'+encodeURIComponent("'日記履歴'!A:N")+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({majorDimension:'ROWS',values:batch.map(C.toRow)})});}
    const verified=await readRemote(id),verifiedMap=new Map(verified.map(r=>[r.revisionId,r]));
    for(const r of pending)if(!verifiedMap.has(r.revisionId)||C.canonical(r)!==C.canonical(verifiedMap.get(r.revisionId)))throw Error('Googleへの保存を確認できません。端末の記録は保持し、未同期のままにします');
-   await write(verified,{['remote:'+id]:{at:new Date().toISOString(),ids:[...verifiedMap.keys()]}});evidence.save='success';await reload();const disk=new Map(state.revisions.map(r=>[r.revisionId,r]));for(const r of verified)if(!disk.has(r.revisionId)||C.canonical(disk.get(r.revisionId))!==C.canonical(r))throw Error('端末の日記の読み戻しが一致しません');evidence.readback='success';evidence.verifiedAt=new Date().toISOString();evidence.revisionIds=verified.map(r=>r.revisionId);channel?.postMessage('changed');return {ok:true,message:'日記の同期・読み取り照合が完了しました',evidence};
+   await write(verified,{['remote:'+id]:{at:new Date().toISOString(),ids:[...verifiedMap.keys()]}});evidence.save='success';await reload();const disk=new Map(state.revisions.map(r=>[r.revisionId,r]));for(const r of verified)if(!disk.has(r.revisionId)||C.canonical(disk.get(r.revisionId))!==C.canonical(r))throw Error('端末のダイアリーの読み戻しが一致しません');evidence.readback='success';evidence.verifiedAt=new Date().toISOString();evidence.revisionIds=verified.map(r=>r.revisionId);channel?.postMessage('changed');return {ok:true,message:'ダイアリーの同期・読み取り照合が完了しました',evidence};
   }catch(error){if(evidence.fetch!=='success')evidence.fetch='failed';else if(evidence.save!=='success')evidence.save='failed';else evidence.readback='failed';problem='同期失敗・未確認：'+error.message;try{await reload();}catch{} return {ok:false,message:problem,evidence};}
   finally{syncing=false;renderState();}
  }
  function connect(){
-  if(!ready||syncing||authorizing)return;if(!state.meta.sheet){showError(Error('先に自分の日記台帳を設定してください'));return;}
+  if(!ready||syncing||authorizing)return;if(!state.meta.sheet){showError(Error('先に自分のダイアリー台帳を設定してください'));return;}
   if(token&&Date.now()<expires){synchronize();return;}
   if(!window.google?.accounts?.oauth2){showError(Error('Google接続を読み込めません。通信を確認してHUBを開き直してください'));return;}
   authorizing=true;problem='';renderState();
-  try{client=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:'https://www.googleapis.com/auth/spreadsheets',callback:response=>{authorizing=false;if(response.error){showError(Error('Google接続失敗：'+response.error));return;}token=response.access_token;expires=Date.now()+Math.max(0,(Number(response.expires_in)||3600)-60)*1000;synchronize();},error_callback:()=>{authorizing=false;showError(Error('Google接続を完了していません。日記は端末に保持しています'));}});
+  try{client=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:'https://www.googleapis.com/auth/spreadsheets',callback:response=>{authorizing=false;if(response.error){showError(Error('Google接続失敗：'+response.error));return;}token=response.access_token;expires=Date.now()+Math.max(0,(Number(response.expires_in)||3600)-60)*1000;synchronize();},error_callback:()=>{authorizing=false;showError(Error('Google接続を完了していません。ダイアリーは端末に保持しています'));}});
   client.requestAccessToken({prompt:'select_account'});}catch(error){authorizing=false;showError(error);}
  }
  async function backup(){
   const current=await store.state(),blob=new Blob([JSON.stringify(C.backup(current.revisions,current.meta.draft||null),null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='toshi-diary-'+today()+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);el('diaryBackupStatus').textContent='バックアップのダウンロードを開始しました。端末にファイルが保存されたことを確認してください。';
  }
  async function restore(file){
-  if(!file)return;try{if(file.size>64*1024*1024)throw Error('64MB以下のバックアップを選んでください');const value=JSON.parse(await file.text()),safety=value?.format==='toshi-diary-safety-backup';if(safety&&(value.version!==1||value.database!==DiarySafety.DATABASE||!Array.isArray(value.stores)))throw Error('安全バックアップの形式が違います');const records=safety?C.merge(DiarySafety.rows(value,'revisions')):C.restore(value);if(!confirm('日記の編集履歴 '+records.length+'件を今ある記録と照合して復元します。既存の日記は削除しません。続けますか？'))return;await write(records);await reload();channel?.postMessage('changed');el('diaryBackupStatus').textContent='復元しました。Googleへの反映は日記を同期してください。';if(safety)el('diaryBackupStatus').textContent+=' 台帳設定・書きかけは元ファイルに保持しています（現在の設定・入力は上書きしません）。';if(value.draft?.fields)el('diaryBackupStatus').textContent+=' バックアップの書きかけは元ファイルに保持しています（現在の入力は上書きしません）。';}catch(error){el('diaryBackupStatus').textContent='復元できませんでした。既存の記録は保持しています：'+error.message;}finally{el('diaryRestore').value='';}
+  if(!file)return;try{if(file.size>64*1024*1024)throw Error('64MB以下のバックアップを選んでください');const value=JSON.parse(await file.text()),safety=value?.format==='toshi-diary-safety-backup';if(safety&&(value.version!==1||value.database!==DiarySafety.DATABASE||!Array.isArray(value.stores)))throw Error('安全バックアップの形式が違います');const records=safety?C.merge(DiarySafety.rows(value,'revisions')):C.restore(value);if(!confirm('ダイアリーの編集履歴 '+records.length+'件を今ある記録と照合して復元します。既存のダイアリーは削除しません。続けますか？'))return;await write(records);await reload();channel?.postMessage('changed');el('diaryBackupStatus').textContent='復元しました。Googleへの反映はダイアリーを同期してください。';if(safety)el('diaryBackupStatus').textContent+=' 台帳設定・書きかけは元ファイルに保持しています（現在の設定・入力は上書きしません）。';if(value.draft?.fields)el('diaryBackupStatus').textContent+=' バックアップの書きかけは元ファイルに保持しています（現在の入力は上書きしません）。';}catch(error){el('diaryBackupStatus').textContent='復元できませんでした。既存の記録は保持しています：'+error.message;}finally{el('diaryRestore').value='';}
  }
  async function init(){
   try{await store.open();state=await store.state();if(!state.meta.deviceId){await write([],{deviceId:crypto.randomUUID()});state=await store.state();}
    const params=new URLSearchParams(location.hash.slice(1)),id=params.get('diarySheet');
-   if(id&&/^[A-Za-z0-9_-]{20,}$/.test(id)){if(confirm('このリンクの日記台帳へ同期先を設定しますか？\nhttps://docs.google.com/spreadsheets/d/'+id+'/edit\n次に同期すると、この端末の日記と全編集履歴をこの台帳へ追加します。'))await write([],{sheet:id});params.delete('diarySheet');history.replaceState(null,'',location.pathname+location.search+(params.size?'#'+params.toString():''));}
+   if(id&&/^[A-Za-z0-9_-]{20,}$/.test(id)){if(confirm('このリンクのダイアリー台帳へ同期先を設定しますか？\nhttps://docs.google.com/spreadsheets/d/'+id+'/edit\n次に同期すると、この端末のダイアリーと全編集履歴をこの台帳へ追加します。'))await write([],{sheet:id});params.delete('diarySheet');history.replaceState(null,'',location.pathname+location.search+(params.size?'#'+params.toString():''));}
    ready=true;await reload();el('diarySheetUrl').value=state.meta.sheet?'https://docs.google.com/spreadsheets/d/'+state.meta.sheet+'/edit':'';setForm();
-   const draft=state.meta.draft;if(draft?.fields){const base=state.revisions.find(r=>r.revisionId===draft.baseRevisionId)||null;setForm(base,draft.parents||null);for(const [k,field] of Object.entries(fields))if(typeof draft.fields[k]==='string')el(field).value=draft.fields[k];el('diaryDraftStatus').textContent='この端末の書きかけを復元しました（日記未登録・未共有）';renderRelated();}
+   const draft=state.meta.draft;if(draft?.fields){const base=state.revisions.find(r=>r.revisionId===draft.baseRevisionId)||null;setForm(base,draft.parents||null);for(const [k,field] of Object.entries(fields))if(typeof draft.fields[k]==='string')el(field).value=draft.fields[k];el('diaryDraftStatus').textContent='この端末の書きかけを復元しました（ダイアリー未登録・未共有）';renderRelated();}
    renderState();
-  }catch(error){ready=false;problem='日記の保存領域を開けません：'+error.message+'。保存済みデータは削除していません。';renderState();}
+  }catch(error){ready=false;problem='ダイアリーの保存領域を開けません：'+error.message+'。保存済みデータは削除していません。';renderState();}
  }
  globalThis.HubDiarySync={SCOPE:'https://www.googleapis.com/auth/spreadsheets',state:()=>({ready,configured:!!state.meta.sheet,busy:syncing||authorizing||saving}),syncWithGrant:async grant=>{
-  if(!ready||syncing||authorizing||saving)return {ok:false,message:'日記は準備中または処理中です'};
-  if(!state.meta.sheet)return {ok:false,message:'日記台帳が未設定です。日記画面で設定してください'};
-  if(!grant||typeof grant.access_token!=='string'||!grant.access_token||!Number.isFinite(grant.expiresAt)||grant.expiresAt<=Date.now()||!String(grant.scope||'').split(/\s+/).includes('https://www.googleapis.com/auth/spreadsheets'))return {ok:false,message:'日記のGoogle接続を確認できません。端末の記録は保持しています'};
+  if(!ready||syncing||authorizing||saving)return {ok:false,message:'ダイアリーは準備中または処理中です'};
+  if(!state.meta.sheet)return {ok:false,message:'ダイアリー台帳が未設定です。ダイアリー画面で設定してください'};
+  if(!grant||typeof grant.access_token!=='string'||!grant.access_token||!Number.isFinite(grant.expiresAt)||grant.expiresAt<=Date.now()||!String(grant.scope||'').split(/\s+/).includes('https://www.googleapis.com/auth/spreadsheets'))return {ok:false,message:'ダイアリーのGoogle接続を確認できません。端末の記録は保持しています'};
   token=grant.access_token;expires=grant.expiresAt;return synchronize();
  }};
  el('diaryForm').onsubmit=saveDiary;el('diaryNew').onclick=()=>startNew().catch(showError);

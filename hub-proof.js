@@ -1,6 +1,6 @@
 (function(){
  'use strict';
- const VERSION='1.2.19',store=new HubProofStore(),$=id=>document.getElementById(id);
+ const VERSION='1.2.20',store=new HubProofStore(),$=id=>document.getElementById(id);
  // Consent stays in memory for one explicitly selected Flip8 record only.
  // No persisted setting, restored backup or ordinary sync enables delivery.
  let selected=null,activeConsent=null,transport=null,sending=false,refreshSerial=0;
@@ -21,7 +21,7 @@
     const delivery=await store.deliveryState(row.id),confirmed=delivery?.state==='confirmed',state=document.createElement('p');state.textContent='Google版との独立照合：HUB未確認／画面表示：未確認／自動送信：'+(HubProofContinuous.enabled()?'ON：Flip8':'OFF')+'／Driveへの記録保存：'+(confirmed?'保存・読み戻し確認済み':delivery?.state==='pending'?'未確認・同じ記録で再試行できます':'未送信')+'／ナミの読取り：未確認';box.append(state);
     if(record){const detail=document.createElement('details'),summary=document.createElement('summary'),pre=document.createElement('pre');summary.textContent='確認記録の内容';pre.textContent=JSON.stringify(record,null,2);pre.style.whiteSpace='pre-wrap';pre.style.overflowWrap='anywhere';detail.append(summary,pre);box.append(detail);
      if(device?.name==='Flip8'&&record.device.id===device.deviceId&&record.localSaveVerified&&(!target||target.attemptId===row.id)&&!confirmed){
-      const button=document.createElement('button');button.type='button';button.textContent=target?'同じ1件の送信テストを確認':'この1件の送信テストを確認';button.dataset.proofTest=row.id;button.dataset.write='';button.dataset.unverified=String(sending);button.disabled=sending||!HubApp.canWrite();button.onclick=()=>prepareTest(row.id).catch(()=>message('送信対象を確認できません。予定・日記は保持しています。'));box.append(button);
+      const button=document.createElement('button');button.type='button';button.textContent=target?'同じ1件の送信テストを確認':'この1件の送信テストを確認';button.dataset.proofTest=row.id;button.dataset.write='';button.dataset.unverified=String(sending);button.disabled=sending||!HubApp.canWrite();button.onclick=()=>prepareTest(row.id).catch(()=>message('送信対象を確認できません。予定・ダイアリーは保持しています。'));box.append(button);
      }
      if(confirmed&&delivery.fileId){const link=document.createElement('a');link.href=fileUrl(delivery.fileId);link.target='_blank';link.rel='noopener noreferrer';link.textContent='Driveの確認記録を開く';box.append(link);
       const hint=document.createElement('p');hint.textContent='ナミには下の内容をコピーして伝えてください。ナミが実際に読めたかは別に確認します。';box.append(hint);
@@ -31,10 +31,10 @@
    }
    if(device?.name==='Fold8'){const info=document.createElement('p');info.textContent='今回はFlip8の1件だけを送信テストします。Fold8は自動送信OFFのまま、ナミの読取り確認後に進めます。';container.append(info);}
    if(serial===refreshSerial)$('hubProofRows').replaceChildren(container);
-  }catch{message('確認記録の保存領域を読み取れません。予定・日記の記録は保持しています。');}
+  }catch{message('確認記録の保存領域を読み取れません。予定・ダイアリーの記録は保持しています。');}
  }
  async function begin(){try{if(!HubApp.assetReady())return null;await HubProofContinuous.load();const attempt=await store.begin(VERSION);if(!attempt)message('この端末が未登録のため確認記録は作成しません。自動送信はOFFです。');return attempt;}catch{message('確認記録の作成を開始できません。通常の同期結果とは別に、HUB未確認として扱います。');return null;}}
- async function finish(attempt,states){if(!attempt)return;try{const record=await store.finish(attempt,states);message((record.localSaveVerified?'端末への保存・読み戻しを確認しました。':'保存未確認または部分失敗の記録を残しました。')+' Google版との独立照合・画面表示は未確認です。');if($('hubProofSettings').open)await refresh();if(HubProofContinuous.enabled())void HubProofContinuous.send(record);}catch{message('確認記録の保存・読み戻しを確認できません。HUB未確認です。予定・日記の同期結果は上の表示で確認してください。');}}
+ async function finish(attempt,states){if(!attempt)return;try{const record=await store.finish(attempt,states);message((record.localSaveVerified?'端末への保存・読み戻しを確認しました。':'保存未確認または部分失敗の記録を残しました。')+' Google版との独立照合・画面表示は未確認です。');if($('hubProofSettings').open)await refresh();if(HubProofContinuous.enabled())void HubProofContinuous.send(record);}catch{message('確認記録の保存・読み戻しを確認できません。HUB未確認です。予定・ダイアリーの同期結果は上の表示で確認してください。');}}
  async function prepareTest(id){
   if(sending)return;HubApp.checkWrite();const device=await store.settings(),row=await store.get(id),target=await store.testTarget();
   const record=HubProofCore.validate(row?.record);if(device?.name!=='Flip8'||record.device.id!==device.deviceId||!record.localSaveVerified||target&&target.attemptId!==id)throw Error('送信対象を確認できません');
@@ -55,7 +55,7 @@
    $('hubProofTestStatus').textContent='この1件をDriveに保存し、読み戻しの一致を確認しました。閉じるとナミへ伝えるリンクが表示されます。自動送信はOFFです。';message('Flip8の1件をDriveへ保存・読み戻し確認済み。ナミの読取り・Google最新版との一致・画面表示は未確認です。');selected=null;
   }catch(e){
    const problem=HubProofDrive.describe(e,'LOCAL');
-   $('hubProofTestStatus').textContent=problem.message+' '+problem.detail+'。予定・日記は保持しています。閉じて、同じ1件から再試行できます。自動送信はOFFです。';message($('hubProofTestStatus').textContent);
+   $('hubProofTestStatus').textContent=problem.message+' '+problem.detail+'。予定・ダイアリーは保持しています。閉じて、同じ1件から再試行できます。自動送信はOFFです。';message($('hubProofTestStatus').textContent);
   }finally{activeConsent=null;transport=null;sending=false;$('hubProofTestAgree').checked=false;testControls();await refresh();}
  };
  $('hubProofTestAgree').onchange=testControls;
