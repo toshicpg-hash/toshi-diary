@@ -31,7 +31,7 @@
    return reasons.find(x=>REASONS.has(x))||null;
   }catch{return null;}
  }
- function create({approved,authorize,store,core,fetch:request=globalThis.fetch}){
+ function create({approved,authorize,store,core,fetch:request=globalThis.fetch,beforeRequest=async()=>true}){
   const running=new Map();
   const failure=(code,status,stage,reason)=>Object.assign(Error(code),{code,status,stage,reason});
   function send(record){
@@ -45,7 +45,7 @@
    let grant;try{grant=await authorize();}catch(error){throw failure(CODES.has(error?.code)?error.code:'GOOGLE_AUTH_FAILED',undefined,'AUTH');}
    if(typeof grant?.access_token!=='string'||!grant.access_token||!Number.isFinite(grant.expiresAt)||grant.expiresAt<=Date.now()||!String(grant.scope||'').split(/\s+/).includes(SCOPE))throw failure('DRIVE_AUTH_REQUIRED',undefined,'AUTH');
    const api=async(path,options={},stage='DRIVE')=>{
-    if(approved()!==true)throw failure('TRANSMISSION_NOT_APPROVED');
+    if(approved()!==true||await beforeRequest()!==true||approved()!==true)throw failure('TRANSMISSION_NOT_APPROVED');
     const c=new AbortController(),timer=setTimeout(()=>c.abort(),45000);
     try{let r;try{r=await request('https://www.googleapis.com/'+path,{...options,cache:'no-store',signal:c.signal,headers:{...options.headers,Authorization:'Bearer '+grant.access_token}});}catch{throw failure('DRIVE_NETWORK_UNCONFIRMED',undefined,stage);}
      if(!r.ok)throw failure('DRIVE_HTTP_ERROR',r.status,stage,await responseReason(r));try{return await r.json();}catch{throw failure('DRIVE_RESPONSE_INVALID',undefined,stage);}

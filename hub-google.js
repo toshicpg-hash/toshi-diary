@@ -16,10 +16,10 @@ function authorize(required=SCOPE){
  });
  pending=request;request.then(()=>{if(pending===request)pending=null;},()=>{if(pending===request)pending=null;});return request;
 }
-async function connectForSync({calendar=true,diary=false}={}){
+async function connectForSync({calendar=true,diary=false,proof=false}={}){
  const diaryScope=root.HubDiarySync?.SCOPE;
  if(diary&&diaryScope!=='https://www.googleapis.com/auth/spreadsheets')throw Error('日記同期の接続設定を確認できません');
- const required=[calendar?SCOPE:'',diary?diaryScope:''].filter(Boolean).join(' ');
+ const required=[calendar?SCOPE:'',diary?diaryScope:'',proof?'https://www.googleapis.com/auth/drive.file':''].filter(Boolean).join(' ');
  if(!required)throw Error('同期できる項目がありません');
  await authorize(required);return {access_token:token,expiresAt:expires,scope:tokenScopes};
 }
@@ -30,5 +30,6 @@ async function read(from,to){await authorize();const targets=await calendars();l
 async function complete(item,done){await authorize();const latest=await api(base(item)),patch=HubCore.completionPatch(latest,done,new Date().toISOString());await api(base(item),{method:'PATCH',headers:{'Content-Type':'application/json',...latest.etag?{'If-Match':latest.etag}:{}},body:JSON.stringify(patch)});const result=await api(base(item));return HubCore.fromGoogle(result,{id:item.googleCalendarId,summary:item.externalTodo?'TASK':item.project});}
 async function publish(item){await authorize();const available=await calendars(),calendar=available.find(c=>c.summary==='TASK'&&['writer','owner'].includes(c.accessRole));if(!calendar)throw Error('書き込みできるTASKカレンダーが見つかりません');const date=item.type==='todo'?item.deadlineDate:item.scheduledDate;if(!HubCore.day(date))throw Error('日付のないタスクはこの端末に保持します');const id='hub'+item.safeId.replace(/-/g,'').toLowerCase(),body={id,summary:(item.done?'✅':'')+(item.type==='todo'?'【ToDo】':'【タスク】')+item.title,start:{date},end:{date:HubCore.addDays(date,1)},extendedProperties:{private:{toshiHubType:item.type,toshiHubProject:item.project||'TASK',toshiHubDeadlineDate:item.type==='todo'?item.deadlineDate:'',toshiHubDone:String(!!item.done),toshiHubCompletedAt:item.completedAt||'',toshiHubCompletedDate:item.completedDate||'',toshiHubSafeId:item.safeId,toshiHubDiaryEntryId:item.diaryEntryId||'',toshiHubStart:item.start||item.scheduledDate||'',toshiHubEnd:item.type==='todo'?item.deadlineDate:'',toshiHubDeadlineTime:item.deadlineTime||''}}},path='calendars/'+encodeURIComponent(calendar.id)+'/events';try{await api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});}catch(error){if(error.status!==409)throw error;const existing=await api(path+'/'+id);if(existing.extendedProperties?.private?.toshiHubSafeId!==item.safeId)throw Error('Googleの予定IDが重複しました。登録は中止しました。');}const confirmed=await api(path+'/'+id);if(confirmed.status==='cancelled')throw Error('同じ作業はGoogleで削除されています。端末の記録を保持しました。Google側を確認してください。');if(confirmed.summary!==body.summary||confirmed.start?.date!==body.start.date||confirmed.end?.date!==body.end.date||Object.entries(body.extendedProperties.private).some(([key,value])=>confirmed.extendedProperties?.private?.[key]!==value))throw Error('同じ作業がGoogleにありますが、端末の最新内容と一致しません。端末の記録を保持しました。Google側を確認してください。');return HubCore.fromGoogle(confirmed,calendar);}
 async function connectForProof(){const scope='https://www.googleapis.com/auth/drive.file';await authorize(scope);return {access_token:token,expiresAt:expires,scope:tokenScopes};}
-root.HubGoogle={SCOPE,read,complete,publish,connectForSync,connectForProof};
+function currentProofGrant(){if(!token||Date.now()>=expires||!covers(tokenScopes,'https://www.googleapis.com/auth/drive.file'))throw Object.assign(Error('DRIVE_AUTH_REQUIRED'),{code:'DRIVE_AUTH_REQUIRED'});return {access_token:token,expiresAt:expires,scope:tokenScopes};}
+root.HubGoogle={SCOPE,read,complete,publish,connectForSync,connectForProof,currentProofGrant};
 })(globalThis);

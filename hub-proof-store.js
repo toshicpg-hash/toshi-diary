@@ -41,6 +41,19 @@
    });
    if(!value||JSON.stringify(await this.testTarget())!==JSON.stringify(value))throw Error('送信対象の読み戻しを確認できません');return value;
   }
+  async continuous(){return this.transaction(['settings'],'readonly',(tx,done)=>{const q=tx.objectStore('settings').get('continuous');q.onsuccess=()=>done(q.result||null);});}
+  async setContinuous(enabled,expectedDevice){
+   const value=await this.transaction(['settings','delivery'],'readwrite',(tx,done,fail)=>{
+    const s=tx.objectStore('settings'),q=s.get('device');q.onsuccess=()=>{const d=q.result;if(d?.name!=='Flip8'||d.deviceId!==expectedDevice){fail(Error('継続送信はこのFlip8だけで設定します'));return;}
+     const save=()=>{const row={id:'continuous',version:1,deviceId:d.deviceId,enabled:enabled===true,afterSequence:d.sequence,changedAt:new Date().toISOString(),epoch:crypto.randomUUID()};s.put(row);done(row);};
+     if(enabled!==true){save();return;}
+     const t=s.get('flip8-test');t.onsuccess=()=>{if(t.result?.deviceId!==d.deviceId){fail(Error('先に1件の送信テストを確認してください'));return;}
+      const sent=tx.objectStore('delivery').get(t.result.attemptId);sent.onsuccess=()=>{if(sent.result?.state!=='confirmed'){fail(Error('先に1件の送信テストを確認してください'));return;}save();};
+     };
+    };
+   });
+   if(JSON.stringify(await this.continuous())!==JSON.stringify(value))throw Error('継続送信の設定を読み戻せません');return value;
+  }
   async delivery(id,patch){return this.transaction(['delivery'],'readwrite',(tx,done,fail)=>{const s=tx.objectStore('delivery'),q=s.get(id);q.onsuccess=()=>{if(q.result?.fileId&&patch.fileId&&q.result.fileId!==patch.fileId){fail(Error('送信先の予約IDは変更しません'));return;}const value={...(q.result||{id}),...patch,id};s.put(value);done(value);};});}
   async reserveFile(id,candidate){return this.transaction(['delivery'],'readwrite',(tx,done)=>{const s=tx.objectStore('delivery'),q=s.get(id);q.onsuccess=()=>{if(q.result?.fileId){done(q.result.fileId);return;}s.put({...(q.result||{id}),fileId:candidate,state:'pending'});done(candidate);};});}
   async deliveryState(id){return this.transaction(['delivery'],'readonly',(tx,done)=>{const q=tx.objectStore('delivery').get(id);q.onsuccess=()=>done(q.result||null);});}
