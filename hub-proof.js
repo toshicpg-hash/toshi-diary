@@ -1,6 +1,6 @@
 (function(){
  'use strict';
- const VERSION='1.2.20',store=new HubProofStore(),$=id=>document.getElementById(id);
+ const VERSION='1.2.21',store=new HubProofStore(),$=id=>document.getElementById(id);
  // Consent stays in memory for one explicitly selected Flip8 record only.
  // No persisted setting, restored backup or ordinary sync enables delivery.
  let selected=null,activeConsent=null,transport=null,sending=false,refreshSerial=0;

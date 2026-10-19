@@ -24,3 +24,8 @@
 
 /* Keep the longer diary label inside its existing navigation cell. */
 .hub-nav [data-panel=diary]{white-space:normal;overflow-wrap:anywhere}
+
+/* Make the home sync action distinct and easy to tap. */
+#hubSyncAllHome{flex:1 0 100%;min-height:56px;padding:15px 16px;background:#2563eb;color:#fff;font-size:16px;font-weight:700;line-height:1.4}
+#hubSyncAllHome:hover:not(:disabled){background:#1d4ed8}
+#hubSyncAllHome:focus-visible{outline:3px solid #1e3a8a;outline-offset:3px}
