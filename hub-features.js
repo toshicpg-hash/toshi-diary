@@ -15,11 +15,11 @@
  addHTML($('work'),'<details class="card"><summary>どけた予定・作業を戻す</summary><div id="featureArchivedItems"></div></details>');
  function archivedItems(){if(!globalThis.HubApp||HubApp.panel()!=='work')return;const rows=$('featureArchivedItems');rows.replaceChildren();for(const item of HubApp.allItems().filter(x=>x.cancelled)){rows.append(make('p',item.title||'件名なし'),button('一覧へ戻す',()=>HubApp.archiveItem(item,false),true));}}
  window.addEventListener('hub-render',archivedItems);
- const viewerURLs=[];
- function viewClose(){for(const url of viewerURLs)URL.revokeObjectURL(url);viewerURLs.length=0;$('featureViewer').close();$('featureViewBody').replaceChildren();}
+ let filePreview=null;
+ function viewClose(){filePreview?.close();filePreview=null;$('featureViewer').close();$('featureViewBody').replaceChildren();}
  function view(record){viewClose();const r=record.payload||{},content=$('featureViewBody');$('featureViewTitle').textContent=r.title||r.vendor||'原本';const blob=r.blob||r.image;
   if(r.type==='note')content.append(make('div',r.text||'','feature-note'));
-  else if(blob instanceof Blob){const url=URL.createObjectURL(blob);viewerURLs.push(url);if(['image/png','image/jpeg','image/gif','image/webp','image/avif'].includes(blob.type)){const image=make('img');image.src=url;image.alt=r.title||'領収書の原本';image.className='feature-image';content.append(image);}else if(blob.type==='application/pdf'){const frame=make('iframe');frame.src=url;frame.title='PDFの原本';frame.setAttribute('sandbox','');frame.className='feature-pdf';content.append(frame);}else content.append(make('p','この形式は対応アプリで開いてください。保存した原本は変更していません。'));content.append(button('原本を保存',()=>HubExport.download(blob,r.fileName||r.id||'original')));}
+  else if(blob instanceof Blob){filePreview=HubFilePreview.mount(content,blob,r);}
   else{const url=HubExport.safeURL(r.url);if(url){const link=make('a','元の資料を開く');link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.referrerPolicy='no-referrer';content.append(link);}else content.append(make('p','元のURL・画像の形式を確認できません。元データは保管しています。'));}
   $('featureViewer').showModal();
  }
