@@ -33,7 +33,7 @@
   el('diaryExtras').open=!!(record&&(record.people||record.golfGood||record.golfImprove||record.golfNext));
   el('diaryDraftStatus').textContent='';el('diaryFormStatus').textContent='';renderRelated();
  }
- async function startNew(){if(dirty()&&!confirm('書きかけの内容を閉じて、新しく書きますか？'))return;clearTimeout(draftTimer);draftGeneration++;setForm();await write([],{draft:null});}
+ async function startNew(){if(dirty()&&!confirm('書きかけの内容を閉じて、新しく書きますか？'))return;clearTimeout(draftTimer);draftGeneration++;setForm();el('diaryEditor').open=true;await write([],{draft:null});}
  function queueDraft(){
   if(!ready||saving)return;const generation=++draftGeneration;clearTimeout(draftTimer);
   draftTimer=setTimeout(async()=>{const draft={fields:readFields(),baseRevisionId:editing?.revisionId||null,parents:editParents,at:new Date().toISOString()};try{await write([],{draft});if(generation===draftGeneration)el('diaryDraftStatus').textContent='書きかけをこの端末に保存済み（ダイアリー未登録・未共有）';}catch(e){el('diaryDraftStatus').textContent='書きかけを保存できません。入力欄は残しています：'+e.message;}},500);
@@ -52,7 +52,7 @@
   const alternatives=C.heads(state.revisions).filter(r=>r.entryId===record.entryId);
   setForm(record,resolve?alternatives.map(r=>r.revisionId):null);
   if(resolve){el('diaryBody').value=alternatives.map(r=>'【同時編集の内容】\n'+shareText(r)).join('\n\n');el('diaryFormStatus').textContent='両方の内容を確認・整理して保存してください。元の文章は編集履歴に残ります。';}
-  queueDraft();el('diaryEditor').scrollIntoView({behavior:'smooth',block:'start'});
+  el('diaryEditor').open=true;queueDraft();el('diaryEditor').scrollIntoView({behavior:'smooth',block:'start'});
  }
  function shareText(r){return [r.date+' '+(r.title||'ダイアリー'),r.body,r.people&&'一緒にいた人：'+r.people,r.golfGood&&'よかった点：'+r.golfGood,r.golfImprove&&'反省点：'+r.golfImprove,r.golfNext&&'次回試すこと：'+r.golfNext].filter(Boolean).join('\n');}
  async function copyToNami(record,container){
