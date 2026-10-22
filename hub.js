@@ -31,7 +31,17 @@ function itemRow(item){
  if(item.completionCorrection)content.append(node('p','本人確認で完了を補正。'+(item.completedDate?'実施日 '+item.completedDate:'実施日は不明のまま保持')+'。Google側は変更していません。','muted'));
  if(item.completionConflict)content.append(node('p','端末に残る過去の完了記録を保持しています。Googleの未完了表示と不一致です。実施日は補っていません。','diary-warning'));
  if(item.googleUnverified)content.append(node('p','今回のGoogle取得で未確認。削除・移動・アカウント変更の可能性があります。','diary-warning'));
- if(item.classificationWarnings?.length)content.append(node('p',item.classificationWarnings.join(' '),'diary-warning'));
+ if(item.classificationWarnings?.length){
+  const compatibleNotice='完了状態の保存情報を確認できません。旧件名の表示を保持しています。対象ID：'+item.googleId;
+  const help=item.source==='google'&&['todo','task'].includes(item.type)&&item.classificationWarnings.includes(compatibleNotice);
+  const warnings=item.classificationWarnings.filter(message=>!help||message!==compatibleNotice);
+  if(warnings.length)content.append(node('p',warnings.join(' '),'diary-warning'));
+  if(help){
+   const explanation=node('details',undefined,'muted hub-completion-help');
+   explanation.append(node('summary','完了状態について'),node('p','HUB用の完了情報がまだ確認できない作業です。'+(item.done?'現在は完了として表示しています。実際の状態を確認し、未完了に戻す場合だけ左の✓を押してください。':'未完了なら操作は不要です。作業が完了したら、左の○を押して登録してください。実施日が分からなければ空欄で登録できます。')));
+   const diagnostic=node('details');diagnostic.append(node('summary','確認用の詳細'),node('p',compatibleNotice));explanation.append(diagnostic);content.append(explanation);
+  }
+ }
  if(Array.isArray(item.metadataWarnings)&&item.metadataWarnings.length)content.append(node('p',item.metadataWarnings.filter(x=>typeof x==='string').join(' '),'diary-warning')); 
  const actions=node('div',undefined,'row-actions');
  if(item.source==='google'){if(/^https:\/\/(calendar\.google\.com|www\.google\.com\/calendar)(\/|\?|$)/.test(item.googleUrl||'')){const a=node('a','Googleで開く');a.href=item.googleUrl;a.target='_blank';a.rel='noopener noreferrer';actions.append(a);}}
