@@ -1,7 +1,7 @@
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.HubProofDrive=api;})(globalThis,function(){
  'use strict';
  const SCOPE='https://www.googleapis.com/auth/drive.file',FOLDER='PAPA HUB 同期確認',TAG='papa-hub-sync-proof-v1';
- const CODES=new Set(['TRANSMISSION_NOT_APPROVED','DIFFERENT_DEVICE','FLIP8_TEST_ONLY','DRIVE_AUTH_REQUIRED','DRIVE_NETWORK_UNCONFIRMED','DRIVE_HTTP_ERROR','DRIVE_RESPONSE_INVALID','FOLDER_AMBIGUOUS','FOLDER_NOT_CONFIGURED','FOLDER_INVALID','FOLDER_NOT_PRIVATE','FILE_ID_MISSING','LOCAL_DELIVERY_READBACK_FAILED','REMOTE_RECORD_IDENTITY_MISMATCH','REMOTE_RECORD_READBACK_MISMATCH','REMOTE_RECORD_NOT_FOUND','RECORD_TOO_LARGE','GOOGLE_AUTH_UNAVAILABLE','GOOGLE_POPUP_BLOCKED','GOOGLE_POPUP_CLOSED','GOOGLE_AUTH_FAILED','GOOGLE_ACCESS_DENIED','GOOGLE_INVALID_SCOPE','GOOGLE_AUTH_RESPONSE_INVALID']);
+ const CODES=new Set(['TRANSMISSION_NOT_APPROVED','DIFFERENT_DEVICE','FLIP8_TEST_ONLY','DRIVE_AUTH_REQUIRED','DRIVE_NETWORK_UNCONFIRMED','DRIVE_HTTP_ERROR','DRIVE_RESPONSE_INVALID','FOLDER_AMBIGUOUS','FOLDER_NOT_CONFIGURED','FOLDER_INVALID','FOLDER_NOT_PRIVATE','FILE_ID_MISSING','LOCAL_DELIVERY_READBACK_FAILED','REMOTE_RECORD_IDENTITY_MISMATCH','REMOTE_RECORD_READBACK_MISMATCH','REMOTE_RECORD_NOT_FOUND','RECORD_TOO_LARGE','GOOGLE_AUTH_UNAVAILABLE','GOOGLE_POPUP_BLOCKED','GOOGLE_POPUP_CLOSED','GOOGLE_AUTH_FAILED','GOOGLE_ACCESS_DENIED','GOOGLE_INVALID_SCOPE','GOOGLE_AUTH_RESPONSE_INVALID','GOOGLE_ACCOUNT_REQUIRED','GOOGLE_ACCOUNT_MISMATCH','GOOGLE_ACCOUNT_VERIFY_FAILED','GOOGLE_ACCOUNT_UNVERIFIED','GOOGLE_ACCOUNT_READ_REQUIRED']);
  const STAGES={LOCAL:'端末内の確認',AUTH:'Google接続',FOLDER_SEARCH:'保存先の検索',FOLDER_ID:'保存先の準備',FOLDER_READ:'保存先の確認',FOLDER_CREATE:'保存先の作成',FOLDER_VERIFY:'保存先の非公開確認',RECORD_ID:'確認記録の準備',RECORD_READ:'確認記録の照合',RECORD_UPLOAD:'確認記録の送信',RECORD_VERIFY:'送信後の読み戻し',DRIVE:'Driveへの接続'};
  const REASONS=new Set(['SERVICE_DISABLED','accessNotConfigured','insufficientPermissions','ACCESS_TOKEN_SCOPE_INSUFFICIENT','PERMISSION_DENIED','forbidden','appNotAuthorizedToFile','rateLimitExceeded','userRateLimitExceeded','dailyLimitExceeded','storageQuotaExceeded','quotaExceeded','badRequest','invalid','notFound','authError']);
  function diagnostic(error,fallback='DRIVE'){
@@ -16,6 +16,7 @@
   else if(d.code==='GOOGLE_ACCESS_DENIED')message='Googleの接続が許可されていません。';
   else if(d.code==='GOOGLE_AUTH_UNAVAILABLE')message='Googleの認証機能を読み込めていません。';
   else if(d.code==='GOOGLE_INVALID_SCOPE')message='Googleの権限要求が受け付けられませんでした。接続設定の確認が必要です。';
+  else if(d.code.startsWith('GOOGLE_ACCOUNT_'))message='本人設定と接続アカウントを確認できないため送信を停止しました。ホームの同期用Googleアカウントを確認してください。';
   else if(d.code==='FOLDER_NOT_PRIVATE')message='本人だけの非公開フォルダと確認できません。';
   else if(d.code==='FOLDER_AMBIGUOUS')message='専用フォルダが複数あるため、保存先を確定できません。';
   else if(d.code==='DRIVE_NETWORK_UNCONFIRMED')message='Driveとの通信を確認できません。';
@@ -44,8 +45,11 @@
    if(approved()!==true)throw failure('TRANSMISSION_NOT_APPROVED');
    let grant;try{grant=await authorize();}catch(error){throw failure(CODES.has(error?.code)?error.code:'GOOGLE_AUTH_FAILED',undefined,'AUTH');}
    if(typeof grant?.access_token!=='string'||!grant.access_token||!Number.isFinite(grant.expiresAt)||grant.expiresAt<=Date.now()||!String(grant.scope||'').split(/\s+/).includes(SCOPE))throw failure('DRIVE_AUTH_REQUIRED',undefined,'AUTH');
+   if(typeof grant.assertValid!=='function')throw failure('GOOGLE_ACCOUNT_UNVERIFIED',undefined,'AUTH');
+   grant.assertValid();
    const api=async(path,options={},stage='DRIVE')=>{
     if(approved()!==true||await beforeRequest()!==true||approved()!==true)throw failure('TRANSMISSION_NOT_APPROVED');
+    grant.assertValid();
     const c=new AbortController(),timer=setTimeout(()=>c.abort(),45000);
     try{let r;try{r=await request('https://www.googleapis.com/'+path,{...options,cache:'no-store',signal:c.signal,headers:{...options.headers,Authorization:'Bearer '+grant.access_token}});}catch{throw failure('DRIVE_NETWORK_UNCONFIRMED',undefined,stage);}
      if(!r.ok)throw failure('DRIVE_HTTP_ERROR',r.status,stage,await responseReason(r));try{return await r.json();}catch{throw failure('DRIVE_RESPONSE_INVALID',undefined,stage);}

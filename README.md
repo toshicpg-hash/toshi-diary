@@ -1,4 +1,34 @@
-# PAPA HUB 安全復帰版 1.2.30
+# PAPA HUB 安全復帰版 1.2.31
+
+## Google同期の本人確認（1.2.31）
+
+ホームの「同期用Googleアカウント（この端末）」で、本人が正式なGoogleメールアドレスを入力し、確認ダイアログで保存する。変更も同じ明示的な確認が必要。初めにGoogleから返ったアカウントを自動登録しない。設定は新しい `toshi_google_sync_account_v1` キーにアドレス・確認済み印・設定版だけを保存し、既存データや設定を削除しない。端末ごとに設定が必要で、同期先の台帳・フォルダは変更しない。
+
+通常のまとめ同期は追加の既存scopeを含む場合も `prompt:''` を使う。有効期限とscopeを満たすメモリ内トークンを再利用する。「Googleアカウントを選び直す」だけ `select_account` を指定し、照合後も同期は自動開始しない。初回許可やGoogleセッション状態によって画面が出る場合があり、常時無表示は保証しない。
+
+同期開始時に既存の `calendar.readonly` で `GET users/me/calendarList/primary?fields=id,primary,accessRole` を実行し、primary・owner・IDと本人入力のアドレスを照合する。login_hintは使用しない。未設定・不一致・権限不足・通信や応答の検証失敗では同期ジョブと確認記録の自動送信を止める。失敗した試行の端末内確認記録は従来どおり保持する。トークンの永続保存、refresh token、新しいOAuth scope、共有権限の変更はない。primaryは本人確認と既存の読取りだけに使い、primaryへの登録・更新は禁止する。
+
+日記単独同期と確認記録の手動接続も同じ検証を通す。これらの要求scope自体は従来のSheets/drive.fileのままで、返ったgrantに既存のカレンダー読取り権限がなければ停止し、予定・ToDoの接続確認を案内する。新しいscopeへ自動拡張するフォールバックはない。別名メールでは一致しないことがあるためGoogleアカウントの正式アドレスを入力する。
+
+日記・確認記録は各通信直前に検証済みトークン・期限・本人設定の版を確認する。別タブや同じ画面で設定を変更した場合も、その後の通信を止める。すでに送信した通信を取り消すものではない。設定変更は既存の予定・日記・送信先を移動しない。
+
+### ローカル検証と配信候補の生成
+
+既存 `hub-app-1.2.30.js` の42ソースの順序と例外境界を保持して `hub-app-1.2.31.js` を生成する。旧bundleは変更しない。ビルドスクリプト不在を補う `scripts/build-bundle.cjs` はネットワーク・認証情報・データを使用しない。
+
+```sh
+node scripts/build-bundle.cjs --write
+node scripts/build-bundle.cjs
+node --test tests/google-account.test.cjs
+node tests/google-account-browser.cjs
+git diff --check
+```
+
+ブラウザ試験はPlaywrightとChromiumが必要（既定 `/usr/bin/chromium`、`CHROMIUM_PATH` で指定可能）。新しいブラウザコンテキストと合成データだけを使用し、全ネットワーク要求を模擬応答へ置換する。実Googleの許可・本人データへの同期は実施しない。
+
+### 公開前に必要な確認
+
+2026-10-23に本人から公開承認済み。本人設定・通常同期・選び直し・失敗停止の差分と上記テストを確認してmainへ反映し、既存のPages配信手順を使う。HTMLとService Workerの参照は候補版1.2.31に揃えてある。配信後にHTML・bundle・Workerの版と内容を照合する。端末のCookieやlocalStorage、IndexedDBを消さずに更新する。本人が端末ごとにアドレスを設定し、実データ同期の確認は本人の明示的な操作で行う。実Googleセッションでの画面表示回数と実端末動作は未確認。
 
 個人の予定・日記・入出金をソースに埋め込まない、予定・作業・日記の静的アプリです。
 

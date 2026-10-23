@@ -8,7 +8,7 @@
  function lock(){for(const button of buttons){button.dataset.unverified=String(active);button.disabled=active||!HubApp.canWrite();}}
  async function syncAll(){
   if(active)return;
-  active=true;lock();
+  active=true;lock();let authorized=false;
   try{
    HubApp.checkWrite();proofStates=[];proofAttempt=globalThis.HubProof?await HubProof.begin():null;const diary=globalThis.HubDiarySync?.state();
    const from=document.getElementById('hubSyncFrom').value,to=document.getElementById('hubSyncTo').value;
@@ -17,11 +17,25 @@
    await runner.run({concurrent:true,jobs:[
     {key:'calendar',label:'予定・ToDo',eligible:calendarEligible,reason:'同期する期間を確認してください',scopes:HubGoogle.SCOPE.split(/\s+/),sync:()=>HubApp.syncCalendar()},
     {key:'diary',label:'ダイアリー',eligible:diaryEligible,reason:!diary?.ready?'保存領域の準備中です。完了後にもう一度同期してください':!diary.configured?'台帳未設定です。ダイアリー画面で設定してください':'ダイアリーの処理中です。完了を待ってください',scopes:[globalThis.HubDiarySync?.SCOPE||''],sync:grant=>HubDiarySync.syncWithGrant(grant)}
-   ],authorize:eligible=>HubGoogle.connectForSync({calendar:eligible.some(x=>x.key==='calendar'),diary:eligible.some(x=>x.key==='diary'),proof:globalThis.HubProof?.transmissionApproved()===true}),onChange:show});
+   ],authorize:async eligible=>{const grant=await HubGoogle.connectForSync({calendar:eligible.some(x=>x.key==='calendar'),diary:eligible.some(x=>x.key==='diary'),proof:globalThis.HubProof?.transmissionApproved()===true});authorized=true;return grant;},onChange:show});
   }catch(error){show([{key:'all',label:'同期開始',status:'failed',message:error.message}]);}
-  finally{if(globalThis.HubProof)await HubProof.finish(proofAttempt,proofStates);proofAttempt=null;active=false;lock();}
+  finally{if(globalThis.HubProof)await HubProof.finish(proofAttempt,proofStates,{allowSend:authorized});proofAttempt=null;active=false;lock();}
  }
  for(const button of buttons)button.onclick=syncAll;
  for(const id of ['hubSync','diarySync']){const button=document.getElementById(id),original=button.onclick;button.onclick=function(e){if(!active)return original?.call(this,e);};}
+ const accountInput=document.getElementById('hubGoogleAccountEmail'),accountStatus=document.getElementById('hubGoogleAccountStatus');
+ function accountStatusText(){try{accountStatus.textContent='この端末の同期先：'+HubGoogle.account().email+'。同期時に実際の接続アカウントを照合します。';}catch(error){accountStatus.textContent=error.message;}}
+ document.getElementById('hubGoogleAccountSave').onclick=()=>{
+  try{HubApp.checkWrite();if(active)throw Error('同期が終わってから設定してください');
+   const email=accountInput.value.trim();if(!accountInput.reportValidity())return;
+   if(!confirm('この端末の同期用Googleアカウントを次のアドレスに設定しますか？\n'+email+'\n本人のGoogleアカウントの正式なメールアドレスであることを確認してください。既存の予定・日記・送信先は移動しません。'))return;
+   HubGoogle.saveAccount(email,{confirmed:true});accountInput.value='';accountStatusText();
+  }catch(error){accountStatus.textContent=error.message;}
+ };
+ document.getElementById('hubGoogleAccountSelect').onclick=async()=>{
+  try{HubApp.checkWrite();if(active)throw Error('同期が終わってから選び直してください');accountStatus.textContent='Googleアカウントを確認しています…';await HubGoogle.selectAccount();accountStatus.textContent='本人設定との一致を確認しました。同期ボタンから同期してください。';}
+  catch(error){accountStatus.textContent=error.message;}
+ };
+ window.addEventListener('storage',accountStatusText);accountStatusText();
  globalThis.HubSyncAll={sync:syncAll,active:()=>active};
 }());

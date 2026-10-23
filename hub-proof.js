@@ -1,6 +1,6 @@
 (function(){
  'use strict';
- const VERSION='1.2.30',store=new HubProofStore(),$=id=>document.getElementById(id);
+ const VERSION='1.2.31',store=new HubProofStore(),$=id=>document.getElementById(id);
  // Consent stays in memory for one explicitly selected Flip8 record only.
  // No persisted setting, restored backup or ordinary sync enables delivery.
  let selected=null,activeConsent=null,transport=null,sending=false,refreshSerial=0;
@@ -34,7 +34,7 @@
   }catch{message('確認記録の保存領域を読み取れません。予定・ダイアリーの記録は保持しています。');}
  }
  async function begin(){try{if(!HubApp.assetReady())return null;await HubProofContinuous.load();const attempt=await store.begin(VERSION);if(!attempt)message('この端末が未登録のため確認記録は作成しません。自動送信はOFFです。');return attempt;}catch{message('確認記録の作成を開始できません。通常の同期結果とは別に、HUB未確認として扱います。');return null;}}
- async function finish(attempt,states){if(!attempt)return;try{const record=await store.finish(attempt,states);message((record.localSaveVerified?'端末への保存・読み戻しを確認しました。':'保存未確認または部分失敗の記録を残しました。')+' Google版との独立照合・画面表示は未確認です。');if($('hubProofSettings').open)await refresh();if(HubProofContinuous.enabled())void HubProofContinuous.send(record);}catch{message('確認記録の保存・読み戻しを確認できません。HUB未確認です。予定・ダイアリーの同期結果は上の表示で確認してください。');}}
+ async function finish(attempt,states,{allowSend=true}={}){if(!attempt)return;try{const record=await store.finish(attempt,states);message((record.localSaveVerified?'端末への保存・読み戻しを確認しました。':'保存未確認または部分失敗の記録を残しました。')+' Google版との独立照合・画面表示は未確認です。');if($('hubProofSettings').open)await refresh();if(allowSend&&HubProofContinuous.enabled())void HubProofContinuous.send(record);}catch{message('確認記録の保存・読み戻しを確認できません。HUB未確認です。予定・ダイアリーの同期結果は上の表示で確認してください。');}}
  async function prepareTest(id){
   if(sending)return;HubApp.checkWrite();const device=await store.settings(),row=await store.get(id),target=await store.testTarget();
   const record=HubProofCore.validate(row?.record);if(device?.name!=='Flip8'||record.device.id!==device.deviceId||!record.localSaveVerified||target&&target.attemptId!==id)throw Error('送信対象を確認できません');

@@ -2,7 +2,7 @@
  'use strict';
  const C=ToshiDiaryCore,store=new ToshiDiaryStore(),el=id=>document.getElementById(id);
  const fields={date:'diaryDate',title:'diaryTitle',body:'diaryBody',people:'diaryPeople',golfGood:'diaryGolfGood',golfImprove:'diaryGolfImprove',golfNext:'diaryGolfNext'};
- let state={revisions:[],meta:{}},ready=false,editing=null,editParents=null,token='',expires=0,client=null,syncing=false,authorizing=false,saving=false,draftTimer=null,draftGeneration=0,writeQueue=Promise.resolve(),problem='';
+ let state={revisions:[],meta:{}},ready=false,editing=null,editParents=null,token='',expires=0,sessionGrant=null,syncing=false,authorizing=false,saving=false,draftTimer=null,draftGeneration=0,writeQueue=Promise.resolve(),problem='';
  const channel=typeof BroadcastChannel==='function'?new BroadcastChannel('toshi_diary_changed_v1'):null;
  const today=()=>new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
  const sheetId=value=>/^https:\/\/docs\.google\.com\/spreadsheets\/d\/([A-Za-z0-9_-]{20,})(?:\/|$)/.exec(value.trim())?.[1]||'';
@@ -88,6 +88,8 @@
   await write([],{sheet:id});token='';expires=0;problem='';await reload();
  }
  async function api(path,options={}){
+  if(typeof sessionGrant?.assertValid!=='function')throw Error('本人確認済みのGoogle接続がありません。同期を停止しました');
+  sessionGrant.assertValid();
   if(!token||Date.now()>=expires){token='';throw Error('Google未接続です。もう一度「Googleでダイアリーを同期」を押してください');}
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),45000);
   let response;try{response=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+path,{...options,signal:controller.signal,headers:{Authorization:'Bearer '+token,...options.headers},cache:'no-store'});}catch(error){throw Error(error.name==='AbortError'?'通信が時間切れになりました。記録は保持しています。次回同期で送信済みか確認します':'通信できません。端末の記録は保持しています');}finally{clearTimeout(timer);}
@@ -113,13 +115,12 @@
   }catch(error){if(evidence.fetch!=='success')evidence.fetch='failed';else if(evidence.save!=='success')evidence.save='failed';else evidence.readback='failed';problem='同期失敗・未確認：'+error.message;try{await reload();}catch{} return {ok:false,message:problem,evidence};}
   finally{syncing=false;renderState();}
  }
- function connect(){
+ async function connect(){
   if(!ready||syncing||authorizing)return;if(!state.meta.sheet){showError(Error('先に自分のダイアリー台帳を設定してください'));return;}
-  if(token&&Date.now()<expires){synchronize();return;}
-  if(!window.google?.accounts?.oauth2){showError(Error('Google接続を読み込めません。通信を確認してHUBを開き直してください'));return;}
   authorizing=true;problem='';renderState();
-  try{client=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:'https://www.googleapis.com/auth/spreadsheets',callback:response=>{authorizing=false;if(response.error){showError(Error('Google接続失敗：'+response.error));return;}token=response.access_token;expires=Date.now()+Math.max(0,(Number(response.expires_in)||3600)-60)*1000;synchronize();},error_callback:()=>{authorizing=false;showError(Error('Google接続を完了していません。ダイアリーは端末に保持しています'));}});
-  client.requestAccessToken({prompt:'select_account'});}catch(error){authorizing=false;showError(error);}
+  try{const grant=await HubGoogle.connectForSync({calendar:false,diary:true});sessionGrant=grant;token=grant.access_token;expires=grant.expiresAt;await synchronize();}
+  catch(error){showError(error);}
+  finally{authorizing=false;renderState();}
  }
  async function backup(){
   const current=await store.state(),blob=new Blob([JSON.stringify(C.backup(current.revisions,current.meta.draft||null),null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='toshi-diary-'+today()+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);el('diaryBackupStatus').textContent='バックアップのダウンロードを開始しました。端末にファイルが保存されたことを確認してください。';
@@ -140,7 +141,8 @@
   if(!ready||syncing||authorizing||saving)return {ok:false,message:'ダイアリーは準備中または処理中です'};
   if(!state.meta.sheet)return {ok:false,message:'ダイアリー台帳が未設定です。ダイアリー画面で設定してください'};
   if(!grant||typeof grant.access_token!=='string'||!grant.access_token||!Number.isFinite(grant.expiresAt)||grant.expiresAt<=Date.now()||!String(grant.scope||'').split(/\s+/).includes('https://www.googleapis.com/auth/spreadsheets'))return {ok:false,message:'ダイアリーのGoogle接続を確認できません。端末の記録は保持しています'};
-  token=grant.access_token;expires=grant.expiresAt;return synchronize();
+  if(typeof grant.assertValid!=='function')return {ok:false,message:'本人確認済みのGoogle接続がありません。同期を停止しました'};
+  grant.assertValid();sessionGrant=grant;token=grant.access_token;expires=grant.expiresAt;return synchronize();
  }};
  el('diaryForm').onsubmit=saveDiary;el('diaryNew').onclick=()=>startNew().catch(showError);
  for(const id of Object.values(fields))el(id).addEventListener('input',()=>{queueDraft();if(id==='diaryDate')renderRelated();});
