@@ -94,11 +94,11 @@ async function inspectDeadlines(item){
  }
  assertSession(binding);return [...events.values()].map(event=>({calendarId:calendar.id,eventId:event.id,event,row:HubCore.fromGoogle(event,calendar),calendar}));
 }
-async function repairDeadline(proof,date,{beforeUpdate}={}){
+async function repairDeadline(proof,date,{beforeUpdate,alignStart=false}={}){
  if(typeof beforeUpdate!=='function'||!proof?.eventId||!proof.calendarId||typeof proof.event?.etag!=='string'||!proof.event.etag)throw Error('修正前の予定と保存確認が必要です');
  await authorize();const binding=verified,item={googleCalendarId:proof.calendarId,googleId:proof.eventId},latest=await api(base(item));
  if(latest.id!==proof.eventId||latest.status==='cancelled'||latest.etag!==proof.event.etag)throw Error('確認後にGoogleの予定が変わりました。もう一度期限を照合してください');
- const patch=HubCore.deadlinePatch(latest,proof.calendar,date);
+ const patch=HubCore.deadlinePatch(latest,proof.calendar,date,{alignStart});
  await beforeUpdate({calendarId:proof.calendarId,eventId:proof.eventId,event:latest,row:HubCore.fromGoogle(latest,proof.calendar)});assertSession(binding);
  const changed=!same(patch.extendedProperties.private,latest.extendedProperties?.private||{});
  if(changed)await api(base(item),{method:'PATCH',headers:{'Content-Type':'application/json','If-Match':latest.etag},body:JSON.stringify(patch)});

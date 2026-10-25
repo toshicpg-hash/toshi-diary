@@ -42,5 +42,17 @@ test('a stale local plan stops instead of erasing a concurrent edit',()=>{
  assert.throws(()=>D.assertLocal(o,plan,C.list(legacy,o)),/変わりました/);assert.throws(()=>D.apply(o,plan,row),/確認できません|変わりました/);assert.deepEqual(o,before);
 });
 test('repairing an uncached selected occurrence adds its same ID once without creating an override',()=>{
- const e=event(),o=empty(),key=C.key(proof(e).row),plan=D.candidates([proof(e)],key,[],o,()=>false)[0];const fixed={...e,extendedProperties:{private:C.deadlinePatch(e,calendar,plan.date).extendedProperties.private}};D.apply(o,plan,C.fromGoogle(fixed,calendar));assert.equal(o.google.length,1);assert.equal(o.edits[key],undefined);assert.equal(o.google[0].googleId,e.id);
+ const e=event(),o=empty(),key=C.key(proof(e).row),plan=D.candidates([proof(e)],key,[],o,()=>false)[0];const fixed={...e,extendedProperties:{private:C.deadlinePatch(e,calendar,plan.date,{alignStart:plan.alignStart}).extendedProperties.private}};D.apply(o,plan,C.fromGoogle(fixed,calendar));assert.equal(o.google.length,1);assert.equal(o.edits[key],undefined);assert.equal(o.google[0].googleId,e.id);assert.equal(C.workStart(o.google[0]),'2026-10-26');
+});
+test('already-fixed deadline with a stale moved start remains a selected repair candidate',()=>{
+ const e=event();Object.assign(e.extendedProperties.private,{toshiHubDeadlineDate:'2026-10-26',toshiHubEnd:'2026-10-26'});const o=empty();o.google=[C.fromGoogle(e,calendar)];const key=C.key(o.google[0]);o.edits[key]={deadlineDate:'2026-10-26',scheduledDate:'2026-10-25',start:'2026-10-25',title:'local title',unknown:'keep'};
+ const plan=D.candidates([proof(e)],key,C.list(legacy,o),o,()=>false)[0];assert.equal(plan.selected,true);assert.equal(plan.alignStart,true);
+ const patch=C.deadlinePatch(e,calendar,plan.date,{alignStart:true}),fixed={...e,extendedProperties:{...e.extendedProperties,private:patch.extendedProperties.private}};
+ D.apply(o,plan,C.fromGoogle(fixed,calendar));assert.equal(C.workStart(C.list(legacy,o)[0]),'2026-10-26');assert.equal(C.span(C.list(legacy,o)[0],'2026-10-25'),false);assert.equal(C.span(C.list(legacy,o)[0],'2026-10-26'),true);assert.equal(o.edits[key].title,'local title');assert.equal(o.edits[key].unknown,'keep');assert.deepEqual(fixed.start,e.start);assert.deepEqual(fixed.end,e.end);
+});
+test('explicit start alignment uses the Google scheduled date even with a later deadline',()=>{
+ const e=event(),p=C.deadlinePatch(e,calendar,'2026-10-27',{alignStart:true});assert.equal(p.extendedProperties.private.toshiHubStart,'2026-10-26');assert.equal(p.extendedProperties.private.toshiHubDeadlineDate,'2026-10-27');assert.throws(()=>C.deadlinePatch(e,calendar,'2026-10-25',{alignStart:true}));
+});
+test('an intentionally earlier work start does not automatically opt into start alignment',()=>{
+ const e=event();e.extendedProperties.private.toshiHubStart='2026-10-01';const o=empty();o.google=[C.fromGoogle(e,calendar)];const key=C.key(o.google[0]);const plan=D.candidates([proof(e)],key,C.list(legacy,o),o,()=>false)[0];assert.equal(plan.alignStart,false);assert.equal(plan.canAlignStart,true);assert.equal(C.deadlinePatch(e,calendar,plan.date).extendedProperties.private.toshiHubStart,'2026-10-01');
 });
