@@ -59,6 +59,12 @@ function mergeGoogle(legacy,overlay,incoming,calendars,from,to){const next=struc
 
 function googleWorkTitle(title,type,done){if(!['todo','task'].includes(type)||typeof done!=='boolean')throw Error('作業の分類・完了状態を確認してください');const name=String(title||'').replace(/^(?:✅\s*)?【(?:ToDo|タスク)】\s*/,'').replace(/^✅\s*/,'');return (done?'✅':'')+(type==='todo'?'【ToDo】':'【タスク】')+name;}
 function completionPatch(event,done,at,completedDate){const p=event.extendedProperties?.private||{},title=event.summary||'',prefix=/^(✅\s*)?【(ToDo|タスク)】\s*/.exec(title),type=prefix?(prefix[2]==='ToDo'?'todo':'task'):p.toshiHubType;if(!['todo','task'].includes(type))throw Error('Google側の分類が予定に変更されています。対象ID：'+event.id+'。同期して確認してください。');if(typeof done!=='boolean'||!Number.isFinite(Date.parse(at)))throw Error('完了操作の値を確認できません');const wasDone=['true','false'].includes(p.toshiHubDone)?p.toshiHubDone==='true':!!prefix?.[1],actual=completedDate===undefined||completedDate===''&&wasDone&&day(p.toshiHubCompletedDate)?(wasDone?p.toshiHubCompletedDate||'':''):completedDate;if(actual!==''&&!day(actual))throw Error('実施日はYYYY-MM-DDか空欄で指定してください');return {summary:googleWorkTitle(title,type,done),extendedProperties:{private:{...p,toshiHubType:type,toshiHubDone:String(done),toshiHubCompletedAt:done?(wasDone&&p.toshiHubCompletedAt||at):'',toshiHubCompletedDate:done?actual:''}}};}
+function deadlinePatch(event,calendar,date){
+ const row=fromGoogle(event,calendar),p=event.extendedProperties?.private||{};
+ if(!day(date)||row.type!=='todo'||row.done||row.cancelled||p.toshiHubType&&p.toshiHubType!=='todo'||p.toshiHubDone!==undefined&&!['true','false'].includes(p.toshiHubDone))throw Error('未完了ToDoの分類・期限日を確認できないため変更していません');
+ validateItem({...row,deadlineDate:date,end:date},row);
+ return {extendedProperties:{private:{...p,toshiHubDeadlineDate:date,toshiHubEnd:date}}};
+}
 // With a previous record, validate changed inputs without rewriting or forcing
 // repairs to untouched legacy fields. New records still require explicit dates.
 function validateItem(x,previous=null){
@@ -79,5 +85,5 @@ function validateItem(x,previous=null){
  if(x.type==='todo'&&anyChanged(['scheduledDate','start','deadlineDate','end'])&&workStart(x)&&deadline(x)&&workStart(x)>deadline(x))throw Error('ToDoの開始日は期限日以前にしてください');
  return x;
 }
-return {STORAGE,LEGACY,day,time,addDays,parseLegacy,parseOverlay,key,list,money,deadline,workStart,span,fromGoogle,mergeGoogle,googleWorkTitle,completionPatch,validateItem};
+return {STORAGE,LEGACY,day,time,addDays,parseLegacy,parseOverlay,key,list,money,deadline,workStart,span,fromGoogle,mergeGoogle,googleWorkTitle,completionPatch,deadlinePatch,validateItem};
 });
