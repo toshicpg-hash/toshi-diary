@@ -5,7 +5,7 @@ const vm=require('node:vm');
 const path=require('node:path');
 const repo=path.join(__dirname,'..');
 const read=name=>fs.readFileSync(path.join(repo,name),'utf8');
-const bundled=read('hub-app-1.2.33.js');
+const bundled=read('hub-app-1.2.34.js');
 const marker=';/* Source: hub-google.js */';
 const start=bundled.indexOf(marker),end=bundled.indexOf(';/* Source:',start+1);
 const KEY='toshi_google_sync_account_v1',EMAIL='owner@example.test';

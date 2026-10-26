@@ -1,0 +1,6 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),C=require('../hub-calendar.js');
+test('day view includes just the requested date, including leap and year boundaries',()=>{for(const date of ['2026-10-26','2024-02-29','2027-01-01'])assert.deepEqual(C.calendarDays(date,'day'),[date]);});
+test('day and Sunday-based week navigation cross month/year boundaries',()=>{assert.equal(C.shiftPeriod('2026-12-31','day',1),'2027-01-01');assert.equal(C.shiftPeriod('2027-01-01','day',-1),'2026-12-31');assert.equal(C.shiftPeriod('2026-10-25','week',1),'2026-11-01');assert.equal(C.shiftPeriod('2026-10-26','week',-1),'2026-10-19');});
+test('month navigation clamps the date instead of skipping short months',()=>{assert.equal(C.shiftPeriod('2027-01-31','month',1),'2027-02-28');assert.equal(C.shiftPeriod('2024-01-31','month',1),'2024-02-29');assert.equal(C.shiftPeriod('2026-03-31','month',-1),'2026-02-28');assert.equal(C.shiftPeriod('2026-12-26','month',1),'2027-01-26');assert.equal(C.shiftPeriod('0099-03-31','month',-1),'0099-02-28');});
+test('invalid navigation and unsupported date boundaries fail before showing another period',()=>{for(const args of [['2026-02-30','day',1],['2026-10-26','year',1],['2026-10-26','day',2],['9999-12-31','day',1],['9999-12-31','month',1]])assert.throws(()=>C.shiftPeriod(...args),RangeError);});

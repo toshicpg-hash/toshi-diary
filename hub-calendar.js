@@ -30,10 +30,22 @@
 
   function calendarDays(anchor, view = 'month') {
     requireDay(anchor);
-    if (!['month', 'week'].includes(view)) throw RangeError('Calendar view must be month or week');
+    if (!['month', 'week', 'day'].includes(view)) throw RangeError('Calendar view must be month, week or day');
+    if (view === 'day') return [anchor];
     const first = view === 'month' ? anchor.slice(0, 8) + '01' : anchor;
     const start = shifted(first, -new Date(first + 'T00:00:00Z').getUTCDay());
     return Array.from({ length: view === 'month' ? 42 : 7 }, (_, index) => shifted(start, index));
+  }
+
+  // Navigation changes the view date only; it never edits caller records.
+  function shiftPeriod(anchor, view, step) {
+    requireDay(anchor);
+    if (!['month', 'week', 'day'].includes(view) || ![-1, 1].includes(step)) throw RangeError('Invalid calendar navigation');
+    if (view !== 'month') return shifted(anchor, step * (view === 'week' ? 7 : 1));
+    const first = new Date(anchor.slice(0, 8) + '01T00:00:00Z');
+    first.setUTCMonth(first.getUTCMonth() + step);
+    const next = new Date(first); next.setUTCMonth(next.getUTCMonth() + 1); next.setUTCDate(0);
+    return shifted(first.toISOString().slice(0, 10), Math.min(Number(anchor.slice(-2)), next.getUTCDate()) - 1);
   }
 
   function coversDay(row, date) {
@@ -145,5 +157,5 @@
     return rows;
   }
 
-  return { calendarDays, entries, workRows, amountValue, amountLabel };
+  return { calendarDays, shiftPeriod, entries, workRows, amountValue, amountLabel };
 });
