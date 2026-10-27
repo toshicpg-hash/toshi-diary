@@ -1,12 +1,12 @@
-// Preserve the reviewed 1.2.33 source order and exception boundaries.
+// Preserve the reviewed 1.2.34 source order and exception boundaries.
 // No dependencies, downloads, deployment or personal data are involved.
 const fs=require('node:fs');
 const path=require('node:path');
 const root=path.join(__dirname,'..');
-const target='hub-app-1.2.34.js';
-const template=fs.readFileSync(path.join(root,'hub-app-1.2.33.js'),'utf8');
+const target='hub-app-1.2.35.js';
+const template=fs.readFileSync(path.join(root,'hub-app-1.2.34.js'),'utf8');
 const parts=template.split(/(;\/\* Source: [^ ]+ \*\/\n)/);
-parts[0]=parts[0].replace('1.2.33','1.2.34');
+parts[0]=parts[0].replace('1.2.34','1.2.35');
 for(let i=1;i<parts.length;i+=2){
  const name=/Source: ([^ ]+)/.exec(parts[i])[1];
  const source=fs.readFileSync(path.join(root,name),'utf8');

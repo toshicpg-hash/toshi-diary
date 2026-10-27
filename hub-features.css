@@ -9,3 +9,10 @@
 #featureViewer{box-sizing:border-box;max-height:92dvh;overflow:auto}#featureViewBody{min-width:0;overflow-wrap:anywhere}.feature-preview-area{max-width:100%;overflow:auto}.feature-preview-area canvas{display:block;margin:8px auto;max-width:none}.feature-preview-area .feature-image{display:block;margin:auto}.feature-preview-actions,.feature-preview-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}.feature-preview-actions button,.feature-preview-controls button{min-height:44px}.feature-preview-controls input{width:65px;max-width:100%;padding:8px}.feature-preview-status{padding:10px;background:#eef5ff;border-radius:8px}#featureViewer .calhead{position:sticky;top:0;background:#fff;z-index:1}#featureViewer #featureViewClose{min-width:64px;min-height:44px}
 
 .board-sync-card{padding:14px;background:#eef5ff;border-radius:14px;margin:12px 0;overflow-wrap:anywhere}.board-sync-status{font-weight:700}.board-sync-actions{display:flex;flex-wrap:wrap;gap:8px}.board-sync-card button,.board-entity button{min-height:44px;max-width:100%}.board-sync-dialog{box-sizing:border-box;width:calc(100% - 24px);max-width:620px;max-height:90dvh;overflow:auto}.board-sync-dialog label{display:block;margin:14px 0}.board-sync-dialog input[type=file]{max-width:100%}.board-sync-dialog button{min-height:44px;margin:8px 6px 8px 0}.board-sync-dialog input[type=checkbox],.board-sync-card input[type=checkbox]{width:20px;height:20px;vertical-align:middle;margin-right:6px}.board-entity{display:block!important}.board-version{padding:8px 0;border-bottom:1px solid #dbe4ee}.board-entity details{margin:10px 0}#boardEditCancel{margin:8px 0}
+
+/* Money: distinguish settled records without changing their saved state. */
+#money .hub-row{border-left:4px solid transparent}
+#money .hub-row>div{flex:1;min-width:0}
+#money .hub-row.done{background:#ecfdf5;border-left-color:#16a34a}
+#money .hub-row.done>div::before{content:"✓ 消込済み";display:table;margin-bottom:6px;padding:2px 8px;border-radius:999px;background:#dcfce7;color:#166534;font-size:12px;font-weight:700;line-height:1.5}
+#money .hub-row.done .hub-title{text-decoration:none;color:inherit}
