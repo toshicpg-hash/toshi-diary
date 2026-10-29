@@ -68,7 +68,7 @@ These tests do not establish Android real-device OAuth/Drive behavior, successfu
 The personal common-ledger screen defaults to unsettled entries. The status selector has unsettled, settled and all options, stored only as current UI state. Within each section, planned dates sort oldest first. Entries with no valid planned date have a labelled undated group. Unknown claim months have their own initially closed section and never enter the selected-month section or its totals. This does not infer missing claim months from payment dates. Connection and backup details are collapsed; touch targets stay at least 44px. These controls never write money, dates, statuses, IDs, history or connection settings. Migration/device verification remains a separate workflow.
 
 
-## Compact record cards (draft, not published)
+## Compact record cards (1.2.38 draft, not published)
 
 Record actions show 編集 / 実績 / 消込 (消込取消 for settled records) on one line.
 Full action descriptions remain in accessible names and tooltips. Each action
@@ -103,6 +103,18 @@ in 1.2.37; the prior expectation also failed on unmodified main.
 Real device testing and real Google access are not part of these tests.
 The supplied private reference image could not be downloaded by the Library
 materialization helper in this execution environment; it was not visually
-verified or attached here. Release approval, a new release/cache version and
-physical-device verification remain separate steps before publication. This
-draft regenerates the current bundle only; it does not publish or deploy.
+verified or attached here. Release approval and physical-device verification
+remain separate steps before publication. The 1.2.38 bundle, HTML references,
+CSS cache key and service-worker static cache version are prepared together.
+The published 1.2.37 bundle is preserved; this draft does not publish or deploy.
+
+Release validation: `node tests/money-release-browser.cjs` verifies HTML, bundle,
+CSS and worker version consistency plus a fresh 1.2.38 offline reload with
+unchanged synthetic ledger/history/localStorage. External requests are blocked;
+loss of the local HTTP server is simulated at its socket.
+
+An additional old-cache upgrade experiment from 1.2.37 was inconsistent:
+some runs loaded 1.2.38 offline, while others returned the old HTML after the
+new worker reported ready. It is not counted as passing upgrade verification.
+Resolve/retest old-cache upgrade behavior before publication; service-worker
+logic has not been changed by this UI-only candidate.
