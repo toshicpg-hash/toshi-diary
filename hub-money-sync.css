@@ -9,3 +9,16 @@
 #moneyLedgerRows .hub-row.done::before{content:"✓ 消込済み";display:table;margin-bottom:6px;padding:2px 8px;border-radius:999px;background:#dcfce7;color:#166534;font-size:12px;font-weight:700;line-height:1.5}
 #moneyLedgerRows .hub-row.done>div::before{content:none}
 #moneyLedgerRows .hub-row>.badge{margin-right:.5rem}
+
+/* Compact personal ledger controls; minimum touch target remains 44px. */
+#moneySyncCard{padding:12px;margin-bottom:10px}#moneySyncCard h2{font-size:1rem;margin:0 0 6px}
+#moneySyncStatus{font-size:.86rem;margin:6px 0;line-height:1.5}
+#moneySettings{margin:6px 0 0}#moneySettings>summary{min-height:44px;display:list-item;align-content:center}
+#moneyLedgerView{padding:12px}#moneyLedgerView h2{font-size:1.1rem}
+#moneyLedgerView .money-list-filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+#moneyLedgerView label{min-width:0;font-size:.9rem}#moneyLedgerView input,#moneyLedgerView select{display:block;width:100%;box-sizing:border-box;min-width:0;min-height:44px;padding:8px;margin-top:4px;font-size:1rem}
+#moneyLedgerView button,#moneySyncCard button{min-height:44px;padding:8px 12px;font-size:.94rem}
+#moneyLedgerView .hub-row{padding:10px;margin:8px 0}#moneyLedgerView .hub-row p{margin:6px 0;font-size:.85rem}
+#moneyLedgerView .actions{gap:6px}#moneyLedgerView details>summary{min-height:44px;align-content:center}
+#moneyLedgerUnassigned{margin-top:14px;padding:10px;border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc}
+#moneyLedgerUnassigned>summary{font-weight:700}#moneyLedgerSummary{font-size:.85rem;line-height:1.6;margin:10px 0}
