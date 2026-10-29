@@ -43,7 +43,7 @@ function itemRow(item){
    const diagnostic=node('details');diagnostic.append(node('summary','確認用の詳細'),node('p',compatibleNotice));explanation.append(diagnostic);content.append(explanation);
   }
  }
- if(Array.isArray(item.metadataWarnings)&&item.metadataWarnings.length)content.append(node('p',item.metadataWarnings.filter(x=>typeof x==='string').join(' '),'diary-warning')); 
+ if(Array.isArray(item.metadataWarnings)&&item.metadataWarnings.length)content.append(node('p',item.metadataWarnings.filter(x=>typeof x==='string').join(' '),'diary-warning'));
  const actions=node('div',undefined,'row-actions');
  if(item.source==='google'){if(/^https:\/\/(calendar\.google\.com|www\.google\.com\/calendar)(\/|\?|$)/.test(item.googleUrl||'')){const a=node('a','Googleで開く');a.href=item.googleUrl;a.target='_blank';a.rel='noopener noreferrer';actions.append(a);}}
  else{actions.append(button('編集',()=>openEditor(item),true));if(item.safeId&&['todo','task'].includes(item.type)&&(C.deadline(item)||item.scheduledDate))actions.append(button('Googleへ登録',()=>publish(item),true));}
