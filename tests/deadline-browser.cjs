@@ -61,7 +61,7 @@ const report=[];
     assert.deepEqual(remote.get('synthetic-saturday'),events[3]);
     if(mode==='one-only'){assert.deepEqual(remote.get('synthetic-april'),events[1]);assert.deepEqual(remote.get('synthetic-july'),events[2]);}
     await dialog.getByRole('button',{name:'閉じる',exact:true}).click();assert.match(await target().textContent(),/期限 2026-10-26/);
-    await page.evaluate(()=>HubApp.navigate('calendar'));await page.locator('#hubYear').selectOption('2026');await page.locator('#hubMonthNumber').selectOption('10');await page.locator('#hubWeekView').click();
+    await page.evaluate(()=>HubApp.navigate('calendar'));await page.locator('.calendar-month-picker').evaluate(e=>e.open=true);await page.locator('#hubYear').selectOption('2026');await page.locator('#hubMonthNumber').selectOption('10');await page.locator('#hubWeekView').click();
     for(let i=0;i<4;i++)await page.locator('#hubNext').click();
     assert.match(await page.locator('#hubCalendar [data-date="2026-10-26"] article[data-item-key="'+key+'"]').textContent(),/期限 2026-10-26/);
     assert.equal(await page.locator('#hubCalendar [data-date="2026-10-25"] article[data-item-key="'+key+'"]').count(),mode==='deadline-only'?1:0);

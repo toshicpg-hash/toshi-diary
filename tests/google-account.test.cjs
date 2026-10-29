@@ -5,7 +5,7 @@ const vm=require('node:vm');
 const path=require('node:path');
 const repo=path.join(__dirname,'..');
 const read=name=>fs.readFileSync(path.join(repo,name),'utf8');
-const bundled=read('hub-app-1.2.34.js');
+const bundled=read(/src="\.\/(hub-app-[^"]+\.js)"/.exec(read('index.html'))[1]);
 const marker=';/* Source: hub-google.js */';
 const start=bundled.indexOf(marker),end=bundled.indexOf(';/* Source:',start+1);
 const KEY='toshi_google_sync_account_v1',EMAIL='owner@example.test';
@@ -119,6 +119,7 @@ for(const [name,code] of [['source',read('hub-google.js')],['bundle',bundled.sli
   await assert.rejects(h.api.publish({type:'todo'}),/TASK/);assert.ok(h.requests.every(r=>!r.options.method||r.options.method==='GET'));
  });
 }
+for(const [name,code]of [['source',read('hub-google.js')],['bundle',bundled.slice(start,end)]])test(name+': money-only sign-in requires no broader Drive or calendar-write scope',async()=>{const h=harness(code);h.configure();const grant=await h.api.connectForMoney(),requested=new Set(h.auth[0].scope.split(/\s+/));assert.equal(requested.size,3);assert(requested.has('https://www.googleapis.com/auth/calendar.readonly'));assert(requested.has(SHEET));assert(requested.has(DRIVE));assert(!requested.has('https://www.googleapis.com/auth/drive'));assert(!requested.has('https://www.googleapis.com/auth/calendar.events'));grant.assertValid();assert(h.requests.every(r=>!r.options.method||r.options.method==='GET'));});
 test('proof adapter checks identity again after asynchronous transmission approval',async()=>{
  const h=harness(read('hub-google.js'));h.configure();const grant=await h.api.connectForSync({proof:true});
  const drive=require('../hub-proof-drive.js');let requests=0;
@@ -128,6 +129,6 @@ test('proof adapter checks identity again after asynchronous transmission approv
 test('all generated sections equal source with original ordering and wrappers',()=>{
  const {execFileSync}=require('node:child_process');
  execFileSync(process.execPath,[path.join(repo,'scripts/build-bundle.cjs')]);
- const oldNames=[...read('hub-app-1.2.32.js').matchAll(/Source: ([^ ]+) \*/g)].map(m=>m[1]);
- const newNames=[...bundled.matchAll(/Source: ([^ ]+) \*/g)].map(m=>m[1]);assert.deepEqual(newNames,oldNames);
+ const oldNames=[...read('hub-app-1.2.35.js').matchAll(/Source: ([^ ]+) \*/g)].map(m=>m[1]);
+ const newNames=[...bundled.matchAll(/Source: ([^ ]+) \*/g)].map(m=>m[1]);assert.deepEqual(newNames,[...oldNames,'hub-money-ledger.js','hub-money-store.js','hub-money-cloud.js','hub-money-sync.js']);
 });
