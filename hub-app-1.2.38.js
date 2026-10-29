@@ -1988,7 +1988,7 @@ try {
  async function refresh(){show(await query('PAPA_HUB_OFFLINE_STATUS'));}
  async function preparePDF(){if(preparing)return preparing;if(!navigator.onLine){await refresh();return;}if(!registration?.active){emit('オフライン起動の準備中です。少し待ってもう一度押してください。');return;}emit('オフラインPDF表示用のプログラムを準備しています。原本は送信しません。');preparing=query('PAPA_HUB_PREPARE_PDF').then(show).finally(()=>preparing=null);return preparing;}
  root.HubOffline={observe(fn){listeners.push(fn);refresh();},preparePDF,refresh};
- async function start(){if(!navigator.serviceWorker){await refresh();return;}try{registration=await navigator.serviceWorker.register(new URL('hub-offline-worker.js',base),{scope:base.pathname,updateViaCache:'none'});registration.addEventListener('updatefound',()=>registration.installing?.addEventListener('statechange',refresh));await navigator.serviceWorker.ready;await refresh();}catch{show(null);}}
+ async function start(){if(!navigator.serviceWorker){await refresh();return;}try{registration=await navigator.serviceWorker.register(new URL('hub-offline-worker.js',base),{scope:base.pathname,updateViaCache:'none'});navigator.serviceWorker.addEventListener('controllerchange',refresh);await navigator.serviceWorker.ready;await refresh();}catch{show(null);}}
  const schedule=()=>setTimeout(start,2000);if(document.readyState==='complete')schedule();else window.addEventListener('load',schedule,{once:true});window.addEventListener('online',refresh);
 })(globalThis);
 

@@ -113,8 +113,33 @@ CSS and worker version consistency plus a fresh 1.2.38 offline reload with
 unchanged synthetic ledger/history/localStorage. External requests are blocked;
 loss of the local HTTP server is simulated at its socket.
 
-An additional old-cache upgrade experiment from 1.2.37 was inconsistent:
-some runs loaded 1.2.38 offline, while others returned the old HTML after the
-new worker reported ready. It is not counted as passing upgrade verification.
-Resolve/retest old-cache upgrade behavior before publication; service-worker
-logic has not been changed by this UI-only candidate.
+The offline status observer now refreshes on `controllerchange`, rather than
+messaging the old active worker for each installing-worker state change. It
+neither reloads pages nor forces worker activation. The worker itself, storage,
+authentication and finance synchronization are unchanged by this follow-up.
+
+The release test awaits actual worker replies in a host-side polling loop.
+In this environment Playwright 1.62.1 `waitForFunction(async () => false)` returned
+false immediately, so the previous async predicates did not wait correctly.
+The new gate requires the expected version/core, an activated controller equal
+to registration.active, no installing/waiting worker, and unchanged controller
+identity across the reply. It repeats this after online/offline reload.
+
+**Publication remains blocked by legacy-tab activation.** Run
+`MONEY_PREVIOUS_ROOT=/path/to/unmodified-main-archive node tests/money-release-browser.cjs`
+with an archive of `f27fb936535ead0efa2af3ff40d61c8581940d96`. The test verifies the
+old HTML, bundle, offline controller source and worker byte-for-byte against that
+commit. It retains the old tab while opening the candidate in a second tab,
+checks synthetic ledger history and localStorage, and requires the new controller
+before testing offline use. The unmodified-old-tab scenario still times out
+with old controller/active activated and new worker waiting/installed, including
+with a delayed static response. The new page displays 1.2.38 online, but this is
+not proof that its offline controller has upgraded. Changes to the candidate
+cannot remove the already running observer from a legacy tab.
+
+The fresh 1.2.38 online/offline test passes. Earlier experiments modifying both
+old and new bundles passed but are not evidence for this legacy transition.
+Closing all synthetic old tabs and reopening also worked in diagnosis, without
+clearing data; no automatic tab closure or forced activation is implemented.
+Choose and validate a legacy-tab transition strategy before publication. Worker
+changes, force-update behavior and data deletion are outside this change.
