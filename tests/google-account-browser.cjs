@@ -94,7 +94,7 @@ const html=read('index.html').replace(/<script\b[^>]*>[\s\S]*?<\/script>/g,'').r
   // Smoke-test the actual full candidate bundle and existing safety gate.
   const smoke=await browser.newPage();const smokeErrors=[];smoke.on('pageerror',e=>smokeErrors.push(e.message));
   await smoke.route('**/*',route=>route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:html}):route.fulfill({status:200,body:''}));
-  await smoke.goto('http://localhost:8124/');await smoke.addScriptTag({content:read('hub-app-1.2.31.js')});
+  await smoke.goto('http://localhost:8124/');await smoke.addScriptTag({content:read(/src="\.\/(hub-app-[^"]+\.js)"/.exec(read('index.html'))[1])});
   await smoke.waitForFunction(()=>!!window.HubSyncAll&&!!window.HubGoogle);
   assert.deepEqual(smokeErrors,[]);
   assert.match(await smoke.locator('#hubGoogleAccountStatus').textContent(),/入力・確認/);

@@ -1,0 +1,16 @@
+#!/usr/bin/env node
+/* Read-only verification for Nami. Input/output may contain private finances: never commit them. */
+'use strict';
+const fs=require('node:fs'),C=require('../hub-money-ledger.js');
+function body(rows,headers,name){if(!Array.isArray(rows)||C.canonical(rows[0])!==C.canonical(headers))throw Error(name+'のヘッダーが一致しません');return rows.slice(1).filter(r=>r.some(v=>v!==''&&v!==null));}
+async function check(input){
+ const settings=Object.fromEntries(body(input.settingsRows,['項目','値'],'設定'));if(settings.format!==C.FORMAT||String(settings.version)!=='1'||!C.safeId(settings.ledgerId)||!input.expectedOwner||!input.expectedLedgerId||settings.owner!==input.expectedOwner||settings.ledgerId!==input.expectedLedgerId)throw Error('読み取り対象の本人・台帳ID・形式が一致しません');
+ const history=body(input.historyRows,C.HEADERS,'入出金履歴'),samples=await C.unpackSamples(body(input.sampleRows,C.SAMPLE_HEADERS,'端末比較')),events=history.map(row=>{try{return C.fromRow(row);}catch(e){return {recordId:C.safeId(String(row[1]))?String(row[1]):null,revisionId:C.safeId(String(row[0]))?String(row[0]):null,invalidRow:C.copy(row),problem:e.message};}}),state=await C.audit(events),migration=await C.migrations(state,samples.samples);
+ for(const plan of migration.plans.filter(p=>p.status!=='ready'))for(const row of state.rows)if(row.history.some(r=>r.value?._migration?.planId===plan.id))row.status='migration-pending';state.conflictCount=state.rows.filter(r=>r.status!=='ready').length;
+ const expected=C.viewRows(state),projection=body(input.projectionRows,C.VIEW_HEADERS,'照合表示'),matching=projection.filter(r=>r[0]===state.checkpoint),seen=new Map();let projectionValid=true;
+ for(const row of matching){const before=seen.get(row[1]);if(before&&C.canonical(before)!==C.canonical(row))projectionValid=false;seen.set(row[1],row);}if(seen.size!==expected.length||expected.some(row=>C.canonical(seen.get(row[1])??null)!==C.canonical(row)))projectionValid=false;
+ const heads=C.sampleHeads(samples.samples),devices=heads.heads.map(s=>({id:s.device.id,name:s.device.name,sampleId:s.id,at:s.at,financialFingerprint:s.payload.financialFingerprint||null,recordCount:s.payload.money?.length??null}));
+ return {format:'papa-money-read-verification',version:1,readAt:new Date().toISOString(),owner:settings.owner,ledgerId:settings.ledgerId,ledgerHistoryCheckpoint:state.checkpoint,recordCount:state.rows.length,revisionCount:state.revisionCount,conflictCount:state.conflictCount,quarantinedCount:state.quarantine.length,projectionValid,comparisonIssues:[...samples.issues,...heads.issues],migration:{active:migration.active,plans:migration.plans,sourceDrift:migration.sourceDrift},devices,rows:state.rows,summary:C.summary(state,input.subjectMonth||null),limits:'履歴から再計算した照合版です。未送信端末の現在データ・銀行実績・家賃正本の更新は別途確認が必要です。'};
+}
+module.exports={check};
+if(require.main===module)(async()=>{const filename=process.argv[2];if(!filename)throw Error('Usage: node scripts/check-money-ledger.cjs <private-row-export.json>');const result=await check(JSON.parse(fs.readFileSync(filename,'utf8')));process.stdout.write(JSON.stringify(result,null,2)+'\n');if(!result.projectionValid||result.conflictCount||result.comparisonIssues.length||!result.migration.active||result.migration.sourceDrift.length)process.exitCode=2;})().catch(e=>{process.stderr.write(e.message+'\n');process.exitCode=1;});

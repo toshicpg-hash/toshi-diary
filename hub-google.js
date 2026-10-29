@@ -59,10 +59,10 @@ function authorize(required=SCOPE,{selectAccount=false,recheck=false}={}){
  pending=request;request.then(()=>{if(pending===request)pending=null;},()=>{if(pending===request)pending=null;});return request;
 }
 async function selectAccount(){await authorize(SCOPE,{selectAccount:true});return {email:verified.email};}
-async function connectForSync({calendar=true,diary=false,proof=false}={}){
+async function connectForSync({calendar=true,diary=false,proof=false,money=false}={}){
  const diaryScope=root.HubDiarySync?.SCOPE;
  if(diary&&diaryScope!=='https://www.googleapis.com/auth/spreadsheets')throw Error('日記同期の接続設定を確認できません');
- const required=[calendar?SCOPE:'',diary?diaryScope:'',proof?'https://www.googleapis.com/auth/drive.file':''].filter(Boolean).join(' ');
+ const required=[calendar?SCOPE:'',diary?diaryScope:'',proof?'https://www.googleapis.com/auth/drive.file':'',money?READ_SCOPE+' https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file':''].filter(Boolean).join(' ');
  if(!required)throw Error('同期できる項目がありません');
  await authorize(required,{recheck:true});return grant();
 }
@@ -107,7 +107,8 @@ async function repairDeadline(proof,date,{beforeUpdate,alignStart=false}={}){
  return {row:HubCore.fromGoogle(result,proof.calendar),event:result,googleChanged:changed};
 }
 async function publish(item){await authorize();const binding=verified,available=await calendars();assertSession(binding);const calendar=available.find(c=>!c.primary&&c.id.toLowerCase()!==verified.email&&c.summary==='TASK'&&['writer','owner'].includes(c.accessRole));if(!calendar)throw Error('書き込みできるTASKカレンダーが見つかりません');const date=item.type==='todo'?item.deadlineDate:item.scheduledDate;if(!HubCore.day(date))throw Error('日付のないタスクはこの端末に保持します');const id='hub'+item.safeId.replace(/-/g,'').toLowerCase(),body={id,summary:HubCore.googleWorkTitle(item.title,item.type,!!item.done),start:{date},end:{date:HubCore.addDays(date,1)},extendedProperties:{private:{toshiHubType:item.type,toshiHubProject:item.project||'TASK',toshiHubDeadlineDate:item.type==='todo'?item.deadlineDate:'',toshiHubDone:String(!!item.done),toshiHubCompletedAt:item.completedAt||'',toshiHubCompletedDate:item.completedDate||'',toshiHubSafeId:item.safeId,toshiHubDiaryEntryId:item.diaryEntryId||'',toshiHubStart:item.start||item.scheduledDate||'',toshiHubEnd:item.type==='todo'?item.deadlineDate:'',toshiHubDeadlineTime:item.deadlineTime||''}}},path='calendars/'+encodeURIComponent(calendar.id)+'/events';try{await api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});}catch(error){if(error.status!==409)throw error;const existing=await api(path+'/'+id);if(existing.extendedProperties?.private?.toshiHubSafeId!==item.safeId)throw Error('Googleの予定IDが重複しました。登録は中止しました。');}const confirmed=await api(path+'/'+id);if(confirmed.id!==id)throw Error('登録後のGoogle予定IDを確認できません');if(confirmed.status==='cancelled')throw Error('同じ作業はGoogleで削除されています。端末の記録を保持しました。Google側を確認してください。');if(confirmed.summary!==body.summary||confirmed.start?.date!==body.start.date||confirmed.end?.date!==body.end.date||Object.entries(body.extendedProperties.private).some(([key,value])=>confirmed.extendedProperties?.private?.[key]!==value))throw Error('同じ作業がGoogleにありますが、端末の最新内容と一致しません。端末の記録を保持しました。Google側を確認してください。');assertSession(binding);return HubCore.fromGoogle(confirmed,calendar);}
+async function connectForMoney(){await authorize(READ_SCOPE+' https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file',{recheck:true});return grant();}
 async function connectForProof(){const scope='https://www.googleapis.com/auth/drive.file';await authorize(scope,{recheck:true});return grant();}
 function currentProofGrant(){if(!token||Date.now()>=expires||!covers(tokenScopes,'https://www.googleapis.com/auth/drive.file'))throw Object.assign(Error('DRIVE_AUTH_REQUIRED'),{code:'DRIVE_AUTH_REQUIRED'});return grant();}
-root.HubGoogle={SCOPE,account,saveAccount,selectAccount,read,complete,publish,inspectDeadlines,repairDeadline,connectForSync,connectForProof,currentProofGrant};
+root.HubGoogle={SCOPE,account,saveAccount,selectAccount,read,complete,publish,inspectDeadlines,repairDeadline,connectForSync,connectForMoney,connectForProof,currentProofGrant};
 })(globalThis);

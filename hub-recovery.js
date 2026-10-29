@@ -36,6 +36,7 @@
    if(!confirm('表示した '+preview.changes.length+'件を本人確認による補正として端末へ保存しますか？Googleは変更しません。'))return;
    HubApp.checkWrite();if(snapshot()!==before)throw Error('確認中に記録が変わりました。選び直してください');
    const checked=HubRecovery.plan(fileValue,HubApp.allItems(),HubApp.money(),location.origin);
+   if(checked.changes.some(c=>c.kind==='money'))globalThis.HubMoneySync?.guardLegacy();
    const pending=HubApp.commit('user-confirmed-status-correction',next=>HubRecovery.apply(next,checked,new Date().toISOString()));
    if(pending)await pending;
    const check=HubRecovery.plan(fileValue,HubApp.allItems(),HubApp.money(),location.origin);

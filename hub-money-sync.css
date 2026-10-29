@@ -1,0 +1,11 @@
+/* Personal ledger only. Existing money/receipt/diary presentation is retained. */
+.money-sync-card label,#moneyLedgerEditor label{display:block;margin:.8rem 0}
+.money-sync-card input,.money-sync-card select,.money-sync-card textarea,#moneyLedgerEditor input,#moneyLedgerEditor select,#moneyLedgerEditor textarea{display:block;box-sizing:border-box;width:100%;min-width:0;max-width:100%;margin-top:.3rem}
+.money-sync-card button,#moneyLedgerView button{white-space:normal;overflow-wrap:anywhere}
+.money-sync-card details{margin:.8rem 0}.money-sync-pre{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;max-width:100%;font-size:.82rem}
+#moneyLedgerEditor{box-sizing:border-box;width:min(94vw,650px);max-height:90dvh;overflow:auto;border:1px solid #d1d5db;border-radius:16px;padding:1rem}
+#moneyLedgerEditor form{min-width:0}#moneyLedgerView .hub-row{display:block}#moneyLedgerView .hub-row b{overflow-wrap:anywhere}
+#moneyLedgerView .actions{display:flex;gap:.5rem;flex-wrap:wrap}#moneyLedgerCheckpoint{border-left:3px solid #6b7280;padding-left:.6rem}
+#moneyLedgerRows .hub-row.done::before{content:"✓ 消込済み";display:table;margin-bottom:6px;padding:2px 8px;border-radius:999px;background:#dcfce7;color:#166534;font-size:12px;font-weight:700;line-height:1.5}
+#moneyLedgerRows .hub-row.done>div::before{content:none}
+#moneyLedgerRows .hub-row>.badge{margin-right:.5rem}

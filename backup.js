@@ -2,7 +2,7 @@
 (function(root){
 'use strict';
 const encoder=new TextEncoder(),PART=48*1024,BUFFER=64*1024;
-const known=['toshi_diary_v1','toshi_hub_overlay_v1','toshi_board','toshi_receipts','toshi_assets_safe_v1'];
+const known=['toshi_diary_v1','toshi_hub_overlay_v1','toshi_board','toshi_receipts','toshi_assets_safe_v1','papa_hub_money_v1'];
 const owned=name=>/^toshi_|^papa_hub_/.test(name);
 const json=x=>{const s=JSON.stringify(x);if(s===undefined)throw Error('保存項目をJSONに変換できません');return s;};
 const yieldUI=()=>new Promise(r=>setTimeout(r,0));
