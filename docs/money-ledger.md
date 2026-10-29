@@ -143,3 +143,39 @@ Closing all synthetic old tabs and reopening also worked in diagnosis, without
 clearing data; no automatic tab closure or forced activation is implemented.
 Choose and validate a legacy-tab transition strategy before publication. Worker
 changes, force-update behavior and data deletion are outside this change.
+
+
+## Planned-month list (1.2.39 candidate, not published)
+
+The usual ledger list now selects the month of `plannedDate` (予定月), initially
+the current month in Japan. `subjectMonth` is the invoice/service month (何月分)
+and remains unchanged in 詳細・履歴 and the editor. A missing subject month does
+not hide a dated record. Only missing/invalid planned dates appear in the separate
+予定日不明 section; they are never inferred from subject month or actual dates.
+The pending/settled/all filter applies to both sections; known dates sort oldest
+first. An empty month selects all dated records; reload returns to current month
+and pending, as before. Historical DOM IDs are retained; no filter storage or
+migration is introduced.
+
+The visible summary counts the selected planned-month/status rows and sums their
+known planned amounts separately for income/payment, including settled rows when
+selected. Unknown amounts are counted, zero is known, and uncertain history or
+unknown income/payment classification is excluded with an explicit count. Undated
+rows and other months do not contribute. The canonical ledger summary used by
+other features, raw values/history, authentication, persistence and sync are not
+changed. No real record count is assumed.
+
+Validation: `node --test tests/*.test.cjs`, `node tests/money-list-browser.cjs`,
+`node tests/money-card-browser.cjs`, `node tests/money-sync-browser.cjs`,
+`node scripts/build-bundle.cjs`, `git diff --check`. Set `MONEY_OLD_ROOT` to an
+unmodified 1.2.38 archive for old UI setting/reload compatibility. Tests use only
+synthetic records and verify complete ledger/history/localStorage snapshots.
+
+1.2.39 bundle, HTML and worker static-cache version are prepared together; old
+1.2.38 assets remain intact. Worker behavior is unchanged. The release test's
+`MONEY_PREVIOUS_ROOT` now verifies an unmodified `8d6282e3538098e37a0e8f480fd742899f4fdcf4`
+archive. It closes all same-origin tabs normally, then opens online in the same
+browser context and checks activation, offline reload and data retention. This
+is not an assertion that an already-open old screen updates automatically.
+No PR, merge or publication is part of this candidate task. Real-device validation
+and separate publication approval remain outstanding.

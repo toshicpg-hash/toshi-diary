@@ -17,7 +17,7 @@ let server,browser;
  await p.evaluate(async()=>{
   const C=HubMoneyLedger,device={id:'synthetic-card',name:'SYNTHETIC'},events=[];
   for(const [key,done,month] of [['pending',false,'2026-10'],['settled',true,'2026-10'],['unknown',false,null]]){
-   events.push(await C.seal({format:C.FORMAT,version:1,recordId:'synthetic-'+key+'-'+('abcdefghij'.repeat(6)),revisionId:'r:'+key,parents:[],action:'create',at:'2026-10-29T00:00:00Z',device,value:{kind:'income',title:key==='settled'?'合成：消込済み':'合成：長い件名で入出金カードの折返しと操作領域を確認するためのテスト記録',subjectMonth:month,plannedDate:'2026-10-20',plannedAmount:1200,actuals:[{id:'a:'+key,date:'2026-10-21',amount:1200,evidence:{status:'reported',note:'synthetic',ref:''}}],done,source:{type:'hub'},businessKey:null,note:''}}));
+   events.push(await C.seal({format:C.FORMAT,version:1,recordId:'synthetic-'+key+'-'+('abcdefghij'.repeat(6)),revisionId:'r:'+key,parents:[],action:'create',at:'2026-10-29T00:00:00Z',device,value:{kind:'income',title:key==='settled'?'合成：消込済み':'合成：長い件名で入出金カードの折返しと操作領域を確認するためのテスト記録',subjectMonth:month,plannedDate:key==='unknown'?null:'2026-10-20',plannedAmount:1200,actuals:[{id:'a:'+key,date:'2026-10-21',amount:1200,evidence:{status:'reported',note:'synthetic',ref:''}}],done,source:{type:'hub'},businessKey:null,note:''}}));
   }
   await HubMoneyStore.append(events);await HubMoneyStore.putMeta('config',{enabled:true,owner:'synthetic@example.invalid',sheetId:'synthetic_sheet_not_real_12345',ledgerId:'synthetic-ledger'});await HubMoneySync.render();
  });
