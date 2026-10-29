@@ -66,3 +66,43 @@ These tests do not establish Android real-device OAuth/Drive behavior, successfu
 ## Money list presentation (1.2.37)
 
 The personal common-ledger screen defaults to unsettled entries. The status selector has unsettled, settled and all options, stored only as current UI state. Within each section, planned dates sort oldest first. Entries with no valid planned date have a labelled undated group. Unknown claim months have their own initially closed section and never enter the selected-month section or its totals. This does not infer missing claim months from payment dates. Connection and backup details are collapsed; touch targets stay at least 44px. These controls never write money, dates, statuses, IDs, history or connection settings. Migration/device verification remains a separate workflow.
+
+
+## Compact record cards (draft, not published)
+
+Record actions show 編集 / 実績 / 消込 (消込取消 for settled records) on one line.
+Full action descriptions remain in accessible names and tooltips. Each action
+retains at least a 44 × 44 CSS px target. Record IDs are available in the existing
+collapsible history area, now labelled 詳細・履歴; raw history is unchanged.
+Only presentation changes: values, dates, subject months, settlement state, IDs,
+authentication, persistence and synchronization are unchanged.
+
+Synthetic Chromium comparison against main `f27fb93`, with the same long title,
+long ID and actual entry (closed details; CSS px, rounded):
+
+| Viewport | Action height before → after | Pending card before → after | Settled card before → after |
+| --- | --- | --- | --- |
+| 280 | 102 → 44 | 415 → 284 | 395 → 264 |
+| 320 | 81 → 44 | 369 → 263 | 349 → 243 |
+| 360 | 60 → 44 | 348 → 263 | 328 → 243 |
+| 390 | 60 → 44 | 303 → 218 | 328 → 243 |
+| 822 | 44 → 44 | 221 → 194 | 249 → 222 |
+
+Run `node tests/money-card-browser.cjs` for narrow/wide layout, action labels and
+accessible descriptions, details keyboard toggling, edit/actual dialogs and
+canceled settlement/reopening. It blocks external requests and verifies raw
+ledger/history/localStorage remain unchanged after these interactions. Optional
+`MONEY_TEST_ROOT`, `MONEY_TEST_BASELINE=1` and `MONEY_TEST_OUTPUT` allow comparison
+against an archived base checkout. Results and synthetic screenshots go outside
+the repository by default. Also run `node --test tests/*.test.cjs`,
+`node tests/money-list-browser.cjs`, `node tests/money-sync-browser.cjs`,
+`node scripts/build-bundle.cjs` and `git diff --check`.
+
+The source-order test now includes the existing `hub-money-list.js` entry added
+in 1.2.37; the prior expectation also failed on unmodified main.
+Real device testing and real Google access are not part of these tests.
+The supplied private reference image could not be downloaded by the Library
+materialization helper in this execution environment; it was not visually
+verified or attached here. Release approval, a new release/cache version and
+physical-device verification remain separate steps before publication. This
+draft regenerates the current bundle only; it does not publish or deploy.
