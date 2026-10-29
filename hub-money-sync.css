@@ -22,3 +22,8 @@
 #moneyLedgerView .actions{gap:6px}#moneyLedgerView details>summary{min-height:44px;align-content:center}
 #moneyLedgerUnassigned{margin-top:14px;padding:10px;border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc}
 #moneyLedgerUnassigned>summary{font-weight:700}#moneyLedgerSummary{font-size:.85rem;line-height:1.6;margin:10px 0}
+
+/* Only the three record actions use compact, single-line labels. */
+#moneyLedgerView .money-record-actions{flex-wrap:nowrap}
+#moneyLedgerView .money-record-actions button{flex:0 0 auto;min-width:44px;min-height:44px;padding:8px;white-space:nowrap;overflow-wrap:normal}
+#moneyEditorInfo{overflow-wrap:anywhere}

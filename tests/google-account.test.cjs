@@ -130,5 +130,5 @@ test('all generated sections equal source with original ordering and wrappers',(
  const {execFileSync}=require('node:child_process');
  execFileSync(process.execPath,[path.join(repo,'scripts/build-bundle.cjs')]);
  const oldNames=[...read('hub-app-1.2.35.js').matchAll(/Source: ([^ ]+) \*/g)].map(m=>m[1]);
- const newNames=[...bundled.matchAll(/Source: ([^ ]+) \*/g)].map(m=>m[1]);assert.deepEqual(newNames,[...oldNames,'hub-money-ledger.js','hub-money-store.js','hub-money-cloud.js','hub-money-sync.js']);
+ const newNames=[...bundled.matchAll(/Source: ([^ ]+) \*/g)].map(m=>m[1]);assert.deepEqual(newNames,[...oldNames,'hub-money-ledger.js','hub-money-store.js','hub-money-cloud.js','hub-money-list.js','hub-money-sync.js']);
 });

@@ -66,3 +66,80 @@ These tests do not establish Android real-device OAuth/Drive behavior, successfu
 ## Money list presentation (1.2.37)
 
 The personal common-ledger screen defaults to unsettled entries. The status selector has unsettled, settled and all options, stored only as current UI state. Within each section, planned dates sort oldest first. Entries with no valid planned date have a labelled undated group. Unknown claim months have their own initially closed section and never enter the selected-month section or its totals. This does not infer missing claim months from payment dates. Connection and backup details are collapsed; touch targets stay at least 44px. These controls never write money, dates, statuses, IDs, history or connection settings. Migration/device verification remains a separate workflow.
+
+
+## Compact record cards (1.2.38 draft, not published)
+
+Record actions show 編集 / 実績 / 消込 (消込取消 for settled records) on one line.
+Full action descriptions remain in accessible names and tooltips. Each action
+retains at least a 44 × 44 CSS px target. Record IDs are available in the existing
+collapsible history area, now labelled 詳細・履歴; raw history is unchanged.
+Only presentation changes: values, dates, subject months, settlement state, IDs,
+authentication, persistence and synchronization are unchanged.
+
+Synthetic Chromium comparison against main `f27fb93`, with the same long title,
+long ID and actual entry (closed details; CSS px, rounded):
+
+| Viewport | Action height before → after | Pending card before → after | Settled card before → after |
+| --- | --- | --- | --- |
+| 280 | 102 → 44 | 415 → 284 | 395 → 264 |
+| 320 | 81 → 44 | 369 → 263 | 349 → 243 |
+| 360 | 60 → 44 | 348 → 263 | 328 → 243 |
+| 390 | 60 → 44 | 303 → 218 | 328 → 243 |
+| 822 | 44 → 44 | 221 → 194 | 249 → 222 |
+
+Run `node tests/money-card-browser.cjs` for narrow/wide layout, action labels and
+accessible descriptions, details keyboard toggling, edit/actual dialogs and
+canceled settlement/reopening. It blocks external requests and verifies raw
+ledger/history/localStorage remain unchanged after these interactions. Optional
+`MONEY_TEST_ROOT`, `MONEY_TEST_BASELINE=1` and `MONEY_TEST_OUTPUT` allow comparison
+against an archived base checkout. Results and synthetic screenshots go outside
+the repository by default. Also run `node --test tests/*.test.cjs`,
+`node tests/money-list-browser.cjs`, `node tests/money-sync-browser.cjs`,
+`node scripts/build-bundle.cjs` and `git diff --check`.
+
+The source-order test now includes the existing `hub-money-list.js` entry added
+in 1.2.37; the prior expectation also failed on unmodified main.
+Real device testing and real Google access are not part of these tests.
+The supplied private reference image could not be downloaded by the Library
+materialization helper in this execution environment; it was not visually
+verified or attached here. Release approval and physical-device verification
+remain separate steps before publication. The 1.2.38 bundle, HTML references,
+CSS cache key and service-worker static cache version are prepared together.
+The published 1.2.37 bundle is preserved; this draft does not publish or deploy.
+
+Release validation: `node tests/money-release-browser.cjs` verifies HTML, bundle,
+CSS and worker version consistency plus a fresh 1.2.38 offline reload with
+unchanged synthetic ledger/history/localStorage. External requests are blocked;
+loss of the local HTTP server is simulated at its socket.
+
+The offline status observer now refreshes on `controllerchange`, rather than
+messaging the old active worker for each installing-worker state change. It
+neither reloads pages nor forces worker activation. The worker itself, storage,
+authentication and finance synchronization are unchanged by this follow-up.
+
+The release test awaits actual worker replies in a host-side polling loop.
+In this environment Playwright 1.62.1 `waitForFunction(async () => false)` returned
+false immediately, so the previous async predicates did not wait correctly.
+The new gate requires the expected version/core, an activated controller equal
+to registration.active, no installing/waiting worker, and unchanged controller
+identity across the reply. It repeats this after online/offline reload.
+
+**Publication remains blocked by legacy-tab activation.** Run
+`MONEY_PREVIOUS_ROOT=/path/to/unmodified-main-archive node tests/money-release-browser.cjs`
+with an archive of `f27fb936535ead0efa2af3ff40d61c8581940d96`. The test verifies the
+old HTML, bundle, offline controller source and worker byte-for-byte against that
+commit. It retains the old tab while opening the candidate in a second tab,
+checks synthetic ledger history and localStorage, and requires the new controller
+before testing offline use. The unmodified-old-tab scenario still times out
+with old controller/active activated and new worker waiting/installed, including
+with a delayed static response. The new page displays 1.2.38 online, but this is
+not proof that its offline controller has upgraded. Changes to the candidate
+cannot remove the already running observer from a legacy tab.
+
+The fresh 1.2.38 online/offline test passes. Earlier experiments modifying both
+old and new bundles passed but are not evidence for this legacy transition.
+Closing all synthetic old tabs and reopening also worked in diagnosis, without
+clearing data; no automatic tab closure or forced activation is implemented.
+Choose and validate a legacy-tab transition strategy before publication. Worker
+changes, force-update behavior and data deletion are outside this change.
