@@ -79,7 +79,41 @@ async function read(from,to){
  assertSession(binding);return {rows:parts.flat(),calendars:targets};
 }
 function same(a,b){if(a===b)return true;if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;const keys=Object.keys(a).sort(),other=Object.keys(b).sort();return keys.length===other.length&&keys.every((key,i)=>key===other[i]&&same(a[key],b[key]));}
-async function complete(item,done,options={}){if(!['todo','task'].includes(item.type)||!item.googleCalendarId||!item.googleId)throw Error('更新する作業とGoogle予定IDを確認してください');await authorize();const binding=verified,latest=await api(base(item));if(latest.id!==item.googleId||latest.status==='cancelled')throw Error('Googleの対象ID・削除状態が変わりました。更新していません');if(typeof latest.etag!=='string'||!latest.etag)throw Error('Googleの更新版を取得できないため更新を停止しました');const patch=HubCore.completionPatch(latest,done,new Date().toISOString(),options.completedDate);if(options.beforeUpdate)await options.beforeUpdate({calendarId:item.googleCalendarId,eventId:item.googleId,event:latest,row:HubCore.fromGoogle(latest,{id:item.googleCalendarId,summary:item.externalTodo?'TASK':item.project})});assertSession(binding);await api(base(item),{method:'PATCH',headers:{'Content-Type':'application/json','If-Match':latest.etag},body:JSON.stringify(patch)});const result=await api(base(item)),equal=same;if(result.id!==item.googleId||result.status==='cancelled'||result.summary!==patch.summary||Object.entries(patch.extendedProperties.private).some(([key,value])=>!equal(result.extendedProperties?.private?.[key],value))||Object.entries(latest).some(([key,value])=>!['etag','updated','sequence','summary','extendedProperties'].includes(key)&&!equal(result[key],value))||!equal(result.extendedProperties?.shared,latest.extendedProperties?.shared))throw Error('Google更新後の目印・完了状態・保持情報が一致しません。対象ID：'+item.googleId+'。再同期して対象を確認してください');assertSession(binding);return HubCore.fromGoogle(result,{id:item.googleCalendarId,summary:item.externalTodo?'TASK':item.project});}
+async function inspectCompletion(item){
+ if(!['todo','task'].includes(item.type)||!item.googleCalendarId||!item.googleId)throw Error('更新する作業とGoogle予定IDを確認してください');
+ await authorize();const binding=verified,event=await api(base(item));assertSession(binding);
+ if(event.id!==item.googleId||event.status==='cancelled'||!event.etag)throw Error('Googleの対象ID・更新版を確認できません。更新していません');
+ const row=HubCore.fromGoogle(event,{id:item.googleCalendarId,summary:item.externalTodo?'TASK':item.project});
+ if(row.type!==item.type)throw Error('Googleの作業分類が変わりました。再同期して確認してください');
+ return {calendarId:item.googleCalendarId,eventId:item.googleId,event,row,accountRaw:binding.raw};
+}
+function completionMatches(result,original,patch){
+ return result.id===original.id&&result.status!=='cancelled'&&result.summary===patch.summary&&
+ same(result.extendedProperties?.private,patch.extendedProperties.private)&&
+ Object.entries(original).every(([key,value])=>['etag','updated','sequence','summary','extendedProperties'].includes(key)||same(result[key],value))&&
+ same(result.extendedProperties?.shared,original.extendedProperties?.shared);
+}
+async function complete(item,done,options={}){
+ if(options.proof&&options.proof.accountRaw!==account().raw)throw Error('確認後にGoogleアカウント設定が変わりました。更新していません');
+ const proof=await inspectCompletion(item),binding=verified,latest=proof.event,attempt=options.attempt||{};
+ if(options.proof&&(options.proof.calendarId!==proof.calendarId||options.proof.eventId!==proof.eventId))throw Error('確認画面の対象IDが一致しません。更新していません');
+ // An uncertain request is only read back. Never issue another PATCH for that attempt.
+ if(attempt.sent){
+  if(attempt.calendarId!==proof.calendarId||attempt.eventId!==proof.eventId||attempt.done!==done||attempt.date!==options.completedDate)throw Error('確認中の操作内容が変わりました');
+  if(!completionMatches(latest,attempt.original,attempt.patch))throw Error('前回の保存結果を確認できません。再同期して対象を確認してください。追加の更新はしていません');
+  assertSession(binding);return proof.row;
+ }
+ if(options.proof&&options.proof.event.etag!==latest.etag)throw Error('確認後にGoogleの予定が変わりました。閉じて再同期してください。更新していません');
+ const patch=HubCore.completionPatch(latest,done,new Date().toISOString(),options.completedDate);
+ if(completionMatches(latest,latest,patch))return proof.row;
+ if(options.beforeUpdate)await options.beforeUpdate(proof);
+ assertSession(binding);
+ Object.assign(attempt,{sent:true,calendarId:proof.calendarId,eventId:proof.eventId,done,date:options.completedDate,original:latest,patch});
+ await api(base(item),{method:'PATCH',headers:{'Content-Type':'application/json','If-Match':latest.etag},body:JSON.stringify(patch)});
+ const result=await api(base(item));
+ if(!completionMatches(result,latest,patch))throw Error('Google更新後の完了状態・保持情報が一致しません');
+ assertSession(binding);return HubCore.fromGoogle(result,{id:item.googleCalendarId,summary:item.externalTodo?'TASK':item.project});
+}
 async function inspectDeadlines(item){
  if(item.type!=='todo'||!item.googleCalendarId||!item.googleId)throw Error('照合するToDoのGoogle予定IDを確認してください');
  await authorize();const binding=verified,calendar={id:item.googleCalendarId,summary:item.externalTodo?'TASK':item.project};
@@ -110,5 +144,5 @@ async function publish(item){await authorize();const binding=verified,available=
 async function connectForMoney(){await authorize(READ_SCOPE+' https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file',{recheck:true});return grant();}
 async function connectForProof(){const scope='https://www.googleapis.com/auth/drive.file';await authorize(scope,{recheck:true});return grant();}
 function currentProofGrant(){if(!token||Date.now()>=expires||!covers(tokenScopes,'https://www.googleapis.com/auth/drive.file'))throw Object.assign(Error('DRIVE_AUTH_REQUIRED'),{code:'DRIVE_AUTH_REQUIRED'});return grant();}
-root.HubGoogle={SCOPE,account,saveAccount,selectAccount,read,complete,publish,inspectDeadlines,repairDeadline,connectForSync,connectForMoney,connectForProof,currentProofGrant};
+root.HubGoogle={SCOPE,account,saveAccount,selectAccount,read,complete,inspectCompletion,publish,inspectDeadlines,repairDeadline,connectForSync,connectForMoney,connectForProof,currentProofGrant};
 })(globalThis);

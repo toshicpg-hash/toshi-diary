@@ -99,8 +99,48 @@ function editorItem(){const fields=editorState(),type=fields.hubType,next={...(e
  delete next._key;return C.validateItem(next,editing||undefined);
 }
 function closeEditor(){if(editorValues()!==editorInitial&&!confirm('入力を閉じますか？未保存の内容は保存されません。'))return;$('hubEditor').close();}
-async function toggle(item){checkWrite();if(item.googleUnverified)throw Error('Google側の最新状態を確認できないため、完了状態は変更できません。');if(busy)return;const done=!item.done;let completedDate='';if(done){const answer=prompt('「'+item.title+'」の実施日をYYYY-MM-DDで入力してください。不明なら空欄のままOKを押してください。操作時刻と実施日は別に保存します。',item.completedDate||'');if(answer===null)return;completedDate=answer.trim();if(completedDate&&!C.day(completedDate))throw Error('実施日はYYYY-MM-DDで入力してください。不明なら空欄にしてください。');}if(item.source==='google'){if(!confirm('Googleの作業「'+item.title+'」を'+(done?'完了':'未完了')+'にしますか？'))return;busy=true;controls();try{const result=await HubGoogle.complete(item,done,{completedDate,beforeUpdate:async proof=>{const saved=commit('google-before-update',next=>{next.history.push({at:new Date().toISOString(),kind:'previous-google',value:proof.row},{at:new Date().toISOString(),kind:'previous-google-event',calendarId:proof.calendarId,eventId:proof.eventId,value:proof.event});});if(saved)await saved;await verifyCalendarReadback();}});const pendingSave=commit('google-complete',next=>{const old=next.google.find(x=>C.key(x)===item._key);next.history.push({at:new Date().toISOString(),kind:'previous-google',value:old||item});next.google=next.google.filter(x=>C.key(x)!==item._key);next.google.push(result);delete next.edits[item._key];if(!done)next.edits[item._key]={completionDecision:'reopened'};});if(pendingSave)await pendingSave;status('対象のGoogle予定IDで件名の目印・分類・完了状態と保持情報を読み戻し照合しました。実施日が不明なら空欄です。端末への保存は完了しました。');}catch(error){status('Googleへの反映を確認できません：'+error.message+'。再同期して確認してください。');}finally{busy=false;controls();}return;}
- const pendingSave=commit('completion',next=>{next.history.push({at:new Date().toISOString(),kind:'previous-item',value:item});next.edits[item._key]={...next.edits[item._key],done,completedDate:done?completedDate:'',completedAt:done?new Date().toISOString():''};});if(pendingSave)await pendingSave;status('端末の作業を'+(done?'完了':'未完了')+'にしました。');}
+async function toggle(item){
+ checkWrite();if(item.googleUnverified)throw Error('Google側の最新状態を確認できないため、完了状態は変更できません。');
+ if(busy||document.getElementById('hubCompletion'))return;
+ const done=!item.done,google=item.source==='google',attempt={},dialog=node('dialog');dialog.id='hubCompletion';dialog.setAttribute('aria-labelledby','hubCompletionTitle');
+ const heading=node('h2',done?'この作業を完了にする':'この作業を未完了に戻す');heading.id='hubCompletionTitle';
+ const target=node('p',item.title),state=node('p','変更前の表示：'+(item.done?'完了':'未完了')+' ／ '+(item.type==='todo'?'ToDo':'タスク')+' ／ '+(item.start||'日付不明'));
+ const remote=node('p',google?'Googleの対象と現在の状態を確認中…':'端末に保存されている作業です。');
+ const label=node('label', '実施日（不明なら空欄）'),date=node('input');date.type='date';date.value=item.completedDate||'';date.setAttribute('aria-label','実施日（不明なら空欄）');label.append(date);label.hidden=!done;
+ const message=node('p');message.setAttribute('role','status');message.setAttribute('aria-live','polite');
+ const submit=button(done?'この作業を完了にする':'未完了に戻す',save),close=button('閉じる',()=>dialog.close());
+ const details=node('details');details.append(node('summary','対象IDを確認'),node('p',(item.googleCalendarId||'端末')+' / '+(item.googleId||item._key)));
+ dialog.append(heading,target,state,remote,label,node('p','この1件だけを変更します。実施日や入金の有無を自動で判断しません。'),details,message,submit,close);document.body.append(dialog);
+ let proof=null,pending=false,finished=false,googleVerified=false;
+ const currentState=()=>JSON.stringify([legacy.items.find((x,i)=>C.key(x,i)===item._key),overlay.items.find(x=>C.key(x)===item._key),overlay.google.find(x=>C.key(x)===item._key),overlay.edits[item._key]]),snapshot=currentState();
+ const assertLocal=()=>{checkWrite();if(currentState()!==snapshot)throw Error('確認中に端末の対象が変わりました。閉じて内容を確認してください');};
+ const unload=e=>{if(pending){e.preventDefault();e.returnValue='';}};window.addEventListener('beforeunload',unload);
+ dialog.addEventListener('cancel',e=>{if(pending)e.preventDefault();});dialog.addEventListener('close',()=>{window.removeEventListener('beforeunload',unload);dialog.remove();});
+ function lock(value){pending=value;busy=value;controls();submit.disabled=value||finished||(google&&!proof);close.disabled=value;date.disabled=value||finished||!!attempt.sent;}
+ dialog.showModal();
+ if(google){lock(true);try{proof=await HubGoogle.inspectCompletion(item);assertLocal();remote.textContent='確認時のGoogle件名：'+proof.event.summary+' ／ 保存状態：'+(proof.event.extendedProperties?.private?.toshiHubDone==='true'?'完了':proof.event.extendedProperties?.private?.toshiHubDone==='false'?'未完了':'未設定');message.textContent='対象と実施日を確認して、下のボタンで確定してください。';}catch(error){proof=null;message.textContent='確認できません：'+error.message+'。変更していません。閉じて接続状態を確認してください。';}finally{lock(false);}}
+ async function save(){
+  if(pending||finished)return;
+  const completedDate=date.value;if(done&&completedDate&&!C.day(completedDate)){message.textContent='実施日を確認してください';return;}
+  lock(true);message.textContent=attempt.sent?'前回の保存結果を読み戻し確認中…':'保存中です。この画面のままお待ちください…';
+  try{
+   assertLocal();
+   if(google){
+    const result=await HubGoogle.complete(item,done,{proof,attempt,completedDate,beforeUpdate:async current=>{
+     assertLocal();await commit('google-before-update',next=>next.history.push({at:new Date().toISOString(),kind:'previous-google',value:current.row},{at:new Date().toISOString(),kind:'previous-google-event',calendarId:current.calendarId,eventId:current.eventId,value:current.event}));await verifyCalendarReadback();assertLocal();
+    }});
+    googleVerified=true;assertLocal();await commit('google-complete',next=>{
+     const old=next.google.find(x=>C.key(x)===item._key);next.history.push({at:new Date().toISOString(),kind:'previous-google',value:old||item},{at:new Date().toISOString(),kind:'previous-completion-edit',value:next.edits[item._key]||{}});
+     next.google=next.google.filter(x=>C.key(x)!==item._key);next.google.push(result);
+     const edit={...next.edits[item._key]};for(const key of ['done','completedDate','completedAt','completionDecision'])delete edit[key];
+     if(!done)edit.completionDecision='reopened';next.edits[item._key]=edit;
+    });
+   }else await commit('completion',next=>{next.history.push({at:new Date().toISOString(),kind:'previous-item',value:item});next.edits[item._key]={...next.edits[item._key],done,completedDate:done?completedDate:'',completedAt:done?new Date().toISOString():''};});
+   await verifyCalendarReadback();finished=true;message.textContent=google?'Googleの対象ID・完了状態・保持情報を読み戻し照合し、端末にも保存しました。':'端末に保存して読み戻し確認しました。';status(message.textContent);
+  }catch(error){message.textContent=(googleVerified?'Googleは読み戻し照合済みですが、端末への保存確認が完了していません。 ':'')+(attempt.sent?'保存結果の確認が必要です。追加更新せず、前回の結果だけを再確認できます。':'保存を完了できませんでした。')+' '+error.message;status(message.textContent);if(attempt.sent)submit.textContent='保存結果を再確認';}
+  finally{lock(false);}
+ }
+}
 async function publish(item){checkWrite();if(busy)return;if(!confirm('この作業の件名・日付・完了状態を、接続するGoogleアカウントのTASKカレンダーへ登録しますか？'))return;busy=true;controls();try{const result=await HubGoogle.publish(item);const pendingSave=commit('google-publish',next=>{next.google=next.google.filter(x=>C.key(x)!==C.key(result));next.google.push(result);next.edits[item._key]={...next.edits[item._key],linkedGoogleKey:C.key(result)};});if(pendingSave)await pendingSave;status('GoogleのTASKカレンダーへの登録を読み取り確認しました。');}catch(error){status('Googleへの登録を確認できません：'+error.message+'。端末の記録は残っています。同じ行から再試行できます。');}finally{busy=false;controls();}}
 async function verifyCalendarReadback(){const expected=JSON.stringify(overlay),pointer=overlayRaw,stored=localStorage.getItem(C.STORAGE);if(stored!==pointer)throw Error('予定の保存先の読み戻しが一致しません');const payload=globalThis.HubPersistence?await HubPersistence.load(stored):stored;if(payload!==expected)throw Error('予定の保存内容の読み戻しが一致しません');checkWrite();}
 async function sync(){checkWrite();if(busy)return;const from=$('hubSyncFrom').value,to=$('hubSyncTo').value;if(!C.day(from)||!C.day(to)||from>to)throw Error('取得開始日と終了日を確認してください');const evidence={fetch:'not_attempted',save:'not_attempted',readback:'not_attempted',events:[]};busy=true;controls();$('hubSyncStatus').textContent='Googleカレンダーを読み込み中…';try{const result=await HubGoogle.read(from,C.addDays(to,1));evidence.fetch='success';evidence.events=result.rows.map(x=>({calendarId:x.googleCalendarId,eventId:x.googleId,...(x.googleVersion||{}),localOverride:false}));const pendingSave=commit('google-sync',next=>{const incomingByKey=new Map(result.rows.map(x=>[C.key(x),x]));for(const old of next.google){const incoming=incomingByKey.get(C.key(old));if(incoming&&JSON.stringify(old)!==JSON.stringify(incoming))next.history.push({at:new Date().toISOString(),kind:'previous-google',value:old});}const merged=C.mergeGoogle(legacy,next,result.rows,result.calendars,from,to);next.google=merged.google;next.edits=merged.edits;next.syncedAt=new Date().toISOString();next.syncRange={from,to};});if(pendingSave)await pendingSave;evidence.save='success';await verifyCalendarReadback();evidence.readback='success';evidence.verifiedAt=new Date().toISOString();for(const row of evidence.events)row.localOverride=!!Object.keys(overlay.edits['google:'+row.calendarId+':'+row.eventId]||{}).length;$('hubSyncStatus').textContent='同期完了：'+result.rows.length+'件｜'+new Date().toLocaleString('ja-JP')+'。取得範囲にない保存済み記録も保持しています。';}catch(error){if(evidence.fetch!=='success')evidence.fetch='failed';else if(evidence.save!=='success')evidence.save='failed';else evidence.readback='failed';$('hubSyncStatus').textContent='同期を完了できませんでした：'+error.message+'。保存済みの予定を保持しています。';}finally{busy=false;controls();}return {ok:evidence.readback==='success',message:$('hubSyncStatus').textContent,evidence};}
