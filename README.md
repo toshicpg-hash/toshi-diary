@@ -1,4 +1,6 @@
-# PAPA HUB 安全復帰版 1.2.41（公開前候補）
+# PAPA HUB 安全復帰版 1.2.42（公開前候補）
+
+まとめて同期を保存・読み戻し完了まで順番に待つ候補です。[競合の再現・修正・検証](docs/combined-sync-save-order.md)。
 
 完了表示のGoogle作業を未完了へ戻さず、その1件だけ確認・反映する導線を追加した候補です。[不足原因・修正・合成検証](docs/completion-reconciliation.md)。
 
