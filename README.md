@@ -1,4 +1,6 @@
-# PAPA HUB 安全復帰版 1.2.40（公開前候補）
+# PAPA HUB 安全復帰版 1.2.41（公開前候補）
+
+完了表示のGoogle作業を未完了へ戻さず、その1件だけ確認・反映する導線を追加した候補です。[不足原因・修正・合成検証](docs/completion-reconciliation.md)。
 
 個別ToDoの完了確認を一画面にまとめ、Google読み戻しと端末保存の結果をその場で表示する候補です。[修正・検証と制限](docs/completion-confirmation.md)。
 

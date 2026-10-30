@@ -45,6 +45,7 @@ function itemRow(item){
  }
  if(Array.isArray(item.metadataWarnings)&&item.metadataWarnings.length)content.append(node('p',item.metadataWarnings.filter(x=>typeof x==='string').join(' '),'diary-warning'));
  const actions=node('div',undefined,'row-actions');
+ if(item.source==='google'&&item.done&&['todo','task'].includes(item.type)){const reconcile=button('完了状態をGoogleとそろえる',()=>toggle(item,true),true);reconcile.style.minHeight='44px';if(item.googleUnverified){reconcile.disabled=true;reconcile.dataset.unverified='true';}actions.append(reconcile);}
  if(item.source==='google'){if(/^https:\/\/(calendar\.google\.com|www\.google\.com\/calendar)(\/|\?|$)/.test(item.googleUrl||'')){const a=node('a','Googleで開く');a.href=item.googleUrl;a.target='_blank';a.rel='noopener noreferrer';actions.append(a);}}
  else{actions.append(button('編集',()=>openEditor(item),true));if(item.safeId&&['todo','task'].includes(item.type)&&(C.deadline(item)||item.scheduledDate))actions.append(button('Googleへ登録',()=>publish(item),true));}
  if(item.source==='google'&&item.type==='todo'&&!item.done&&globalThis.HubDeadlineRepair){const audit=button('期限をGoogleと照合',()=>HubDeadlineRepair.open(item),true);if(item.googleUnverified){audit.disabled=true;audit.dataset.unverified='true';}actions.append(audit);}
@@ -99,16 +100,16 @@ function editorItem(){const fields=editorState(),type=fields.hubType,next={...(e
  delete next._key;return C.validateItem(next,editing||undefined);
 }
 function closeEditor(){if(editorValues()!==editorInitial&&!confirm('入力を閉じますか？未保存の内容は保存されません。'))return;$('hubEditor').close();}
-async function toggle(item){
+async function toggle(item,reconcile=false){
  checkWrite();if(item.googleUnverified)throw Error('Google側の最新状態を確認できないため、完了状態は変更できません。');
  if(busy||document.getElementById('hubCompletion'))return;
- const done=!item.done,google=item.source==='google',attempt={},dialog=node('dialog');dialog.id='hubCompletion';dialog.setAttribute('aria-labelledby','hubCompletionTitle');
- const heading=node('h2',done?'この作業を完了にする':'この作業を未完了に戻す');heading.id='hubCompletionTitle';
+ const done=reconcile?true:!item.done,google=item.source==='google',attempt={},dialog=node('dialog');dialog.id='hubCompletion';dialog.setAttribute('aria-labelledby','hubCompletionTitle');
+ const heading=node('h2',reconcile?'完了状態をGoogleとそろえる':done?'この作業を完了にする':'この作業を未完了に戻す');heading.id='hubCompletionTitle';
  const target=node('p',item.title),state=node('p','変更前の表示：'+(item.done?'完了':'未完了')+' ／ '+(item.type==='todo'?'ToDo':'タスク')+' ／ '+(item.start||'日付不明'));
  const remote=node('p',google?'Googleの対象と現在の状態を確認中…':'端末に保存されている作業です。');
  const label=node('label', '実施日（不明なら空欄）'),date=node('input');date.type='date';date.value=item.completedDate||'';date.setAttribute('aria-label','実施日（不明なら空欄）');label.append(date);label.hidden=!done;
  const message=node('p');message.setAttribute('role','status');message.setAttribute('aria-live','polite');
- const submit=button(done?'この作業を完了にする':'未完了に戻す',save),close=button('閉じる',()=>dialog.close());
+ const submit=button(reconcile?'この1件を完了のまま反映':done?'この作業を完了にする':'未完了に戻す',save),close=button('閉じる',()=>dialog.close());
  const details=node('details');details.append(node('summary','対象IDを確認'),node('p',(item.googleCalendarId||'端末')+' / '+(item.googleId||item._key)));
  dialog.append(heading,target,state,remote,label,node('p','この1件だけを変更します。実施日や入金の有無を自動で判断しません。'),details,message,submit,close);document.body.append(dialog);
  let proof=null,pending=false,finished=false,googleVerified=false;
@@ -118,7 +119,7 @@ async function toggle(item){
  dialog.addEventListener('cancel',e=>{if(pending)e.preventDefault();});dialog.addEventListener('close',()=>{window.removeEventListener('beforeunload',unload);dialog.remove();});
  function lock(value){pending=value;busy=value;controls();submit.disabled=value||finished||(google&&!proof);close.disabled=value;date.disabled=value||finished||!!attempt.sent;}
  dialog.showModal();
- if(google){lock(true);try{proof=await HubGoogle.inspectCompletion(item);assertLocal();remote.textContent='確認時のGoogle件名：'+proof.event.summary+' ／ 保存状態：'+(proof.event.extendedProperties?.private?.toshiHubDone==='true'?'完了':proof.event.extendedProperties?.private?.toshiHubDone==='false'?'未完了':'未設定');message.textContent='対象と実施日を確認して、下のボタンで確定してください。';}catch(error){proof=null;message.textContent='確認できません：'+error.message+'。変更していません。閉じて接続状態を確認してください。';}finally{lock(false);}}
+ if(google){lock(true);try{proof=await HubGoogle.inspectCompletion(item);assertLocal();if(reconcile){const savedDate=proof.event.extendedProperties?.private?.toshiHubCompletedDate||'';if((savedDate&&!C.day(savedDate))||(item.completedDate&&!C.day(item.completedDate)))throw Error('既存の実施日を確認できません。変更していません');if(savedDate&&date.value&&savedDate!==date.value)throw Error('既存の実施日が端末とGoogleで異なります。変更せず内容を確認してください');date.value=date.value||savedDate;date.readOnly=!!date.value;}remote.textContent='確認時のGoogle件名：'+proof.event.summary+' ／ 保存状態：'+(proof.event.extendedProperties?.private?.toshiHubDone==='true'?'完了':proof.event.extendedProperties?.private?.toshiHubDone==='false'?'未完了':'未設定');message.textContent='対象と実施日を確認して、下のボタンで確定してください。';}catch(error){proof=null;message.textContent='確認できません：'+error.message+'。変更していません。閉じて接続状態を確認してください。';}finally{lock(false);}}
  async function save(){
   if(pending||finished)return;
   const completedDate=date.value;if(done&&completedDate&&!C.day(completedDate)){message.textContent='実施日を確認してください';return;}
@@ -126,13 +127,13 @@ async function toggle(item){
   try{
    assertLocal();
    if(google){
-    const result=await HubGoogle.complete(item,done,{proof,attempt,completedDate,beforeUpdate:async current=>{
+    const result=await HubGoogle.complete(item,done,{proof,attempt,completedDate,...(reconcile?{preserveCompletedAt:item.completedAt||''}:{}),beforeUpdate:async current=>{
      assertLocal();await commit('google-before-update',next=>next.history.push({at:new Date().toISOString(),kind:'previous-google',value:current.row},{at:new Date().toISOString(),kind:'previous-google-event',calendarId:current.calendarId,eventId:current.eventId,value:current.event}));await verifyCalendarReadback();assertLocal();
     }});
     googleVerified=true;assertLocal();await commit('google-complete',next=>{
      const old=next.google.find(x=>C.key(x)===item._key);next.history.push({at:new Date().toISOString(),kind:'previous-google',value:old||item},{at:new Date().toISOString(),kind:'previous-completion-edit',value:next.edits[item._key]||{}});
      next.google=next.google.filter(x=>C.key(x)!==item._key);next.google.push(result);
-     const edit={...next.edits[item._key]};for(const key of ['done','completedDate','completedAt','completionDecision'])delete edit[key];
+     const edit={...next.edits[item._key]};for(const key of ['done','completedDate','completedAt','completionDecision','completionCorrection'])delete edit[key];
      if(!done)edit.completionDecision='reopened';next.edits[item._key]=edit;
     });
    }else await commit('completion',next=>{next.history.push({at:new Date().toISOString(),kind:'previous-item',value:item});next.edits[item._key]={...next.edits[item._key],done,completedDate:done?completedDate:'',completedAt:done?new Date().toISOString():''};});

@@ -105,6 +105,7 @@ async function complete(item,done,options={}){
  }
  if(options.proof&&options.proof.event.etag!==latest.etag)throw Error('確認後にGoogleの予定が変わりました。閉じて再同期してください。更新していません');
  const patch=HubCore.completionPatch(latest,done,new Date().toISOString(),options.completedDate);
+ if(Object.hasOwn(options,'preserveCompletedAt')){if(!done)throw Error('完了を維持する操作を確認してください');const at=latest.extendedProperties?.private?.toshiHubCompletedAt||options.preserveCompletedAt;if(at&&!Number.isFinite(Date.parse(at)))throw Error('既存の完了日時を確認できません。変更していません');patch.extendedProperties.private.toshiHubCompletedAt=at;}
  if(completionMatches(latest,latest,patch))return proof.row;
  if(options.beforeUpdate)await options.beforeUpdate(proof);
  assertSession(binding);
