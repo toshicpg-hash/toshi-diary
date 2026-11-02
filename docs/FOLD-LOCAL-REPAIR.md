@@ -1,6 +1,6 @@
 # Fold専用：元ID1件のローカル修復候補
 
-未公開の候補コード。実Google書込み、PR作成、push、merge、公開、実端末操作は行っていない。Flipは対象外。既存の93履歴コピー計画とは異なり、入力された新しい94履歴の正確なID/canonicalを使う。
+未公開の1.2.43候補コード。draft PRで確認する段階であり、merge・公開・実Google書込み・実端末操作は未実施。Flipは対象外。既存の93履歴コピー計画とは異なり、入力された新しい94履歴の正確なID/canonicalを使う。
 
 ## 採用方式と変更範囲
 
@@ -10,7 +10,7 @@ Googleをreadonly通信する案は、端末での追加認証・接続先確認
 
 `diary-local-repair.js` と `tools/diary-local-repair/` は独立した専用経路。通常アプリへの変更は `diary-store.js` のDB version 2対応、修復readback待ちの書込み停止、予約されたrepair metaの通常更新禁止、versionchange後の再読込要求のみ。通常commitの同ID不一致拒否とappend-onlyは維持。
 
-source変更から既存ビルド規則でローカル `hub-app-1.2.42.js` を再生成して一致を確認するが、これは**未公開候補**であり、既存公開1.2.42と同じbytesではない。公開時には新しいrelease番号/asset URLと対応する読み込み設定を用意し、キャッシュ上の旧版と混同しないリリース確認が別途必要。現在の公開画面に専用ボタンがあるとは案内しない。
+source変更から既存ビルド規則で新しい `hub-app-1.2.43.js` を生成した。公開済み `hub-app-1.2.42.js` はmainの元bytesへ完全復元し、変更しない。`index.html` と `hub-offline-worker.js` は1.2.43のbundle URL/cacheを選ぶ。まだ配信していない。配信順序と旧assetのhash証拠は [1.2.43 release手順](RELEASE-1.2.43.md) を参照。
 
 ## private入力とpure API
 

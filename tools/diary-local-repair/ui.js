@@ -3,7 +3,7 @@ const el=id=>document.getElementById(id),L=FoldLocalRepair;
 let plan=null,inputs=null,busy=false,controller=null,generation=0;
 async function solo(){
  if(!navigator.serviceWorker||!navigator.locks)throw Error('このブラウザでは安全な専用修復を実行できません');
- const registration=await navigator.serviceWorker.register('./census-worker.js',{scope:'./',updateViaCache:'none'});
+ const registration=await navigator.serviceWorker.register('./census-worker.js?v=1.2.43',{scope:'./',updateViaCache:'none'});
  if(!registration.active)await new Promise((resolve,reject)=>{const worker=registration.installing||registration.waiting;if(!worker)return reject(Error('他画面の確認を開始できません'));const timer=setTimeout(()=>reject(Error('他画面の確認がタイムアウトしました')),10000);worker.addEventListener('statechange',()=>{if(worker.state==='activated'){clearTimeout(timer);resolve();}});});
  const otherWindows=await new Promise((resolve,reject)=>{const channel=new MessageChannel(),timer=setTimeout(()=>{channel.port1.close();reject(Error('他画面の確認がタイムアウトしました'));},5000);channel.port1.onmessage=e=>{clearTimeout(timer);channel.port1.close();if(!Number.isInteger(e.data?.otherWindows))reject(Error('他画面の確認に失敗しました'));else resolve(e.data.otherWindows);};registration.active.postMessage({type:'FOLD_REPAIR_WINDOWS'},[channel.port2]);});
  if(otherWindows!==0)throw Error('このサイトの他の画面が '+otherWindows+' 件開いています。全て閉じてから再試行してください');
