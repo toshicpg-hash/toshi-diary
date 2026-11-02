@@ -6,19 +6,30 @@
  const H=node?require('./diary-repair.js'):root.ToshiDiaryRepair;
  const DATABASE='toshi_diary_v1',ARCHIVE='limitedRepairArchive',JOURNAL='limitedRepairJournal';
  function stop(m){throw Error('Fold repair stopped: '+m);}
- function stable(x){
+ function stable(x,ancestors=new Set()){
   if(x===null||typeof x==='string'||typeof x==='boolean')return JSON.stringify(x);
-  if(typeof x==='number'&&Number.isFinite(x))return JSON.stringify(x);
-  if(Array.isArray(x))return '['+x.map(stable).join(',')+']';
-  if(x&&Object.getPrototypeOf(x)===Object.prototype)return '{'+Object.keys(x).sort().map(k=>JSON.stringify(k)+':'+stable(x[k])).join(',')+'}';
-  stop('JSON-only values required; unknown metadata must not be converted');
+  if(typeof x==='number'&&Number.isFinite(x)&&!Object.is(x,-0))return JSON.stringify(x);
+  const array=Array.isArray(x);
+  if(!x||typeof x!=='object'||Object.getPrototypeOf(x)!==(array?Array.prototype:Object.prototype))stop('lossless JSON values required');
+  if(ancestors.has(x))stop('cyclic metadata is not JSON');
+  const names=Reflect.ownKeys(x),descriptors=Object.getOwnPropertyDescriptors(x);
+  if(names.some(k=>typeof k!=='string'))stop('symbol properties are not JSON');
+  const fields=array?names.filter(k=>k!=='length'):names;
+  if(fields.some(k=>!Object.hasOwn(descriptors[k],'value')||!descriptors[k].enumerable))stop('accessor or hidden properties are not JSON');
+  if(array){
+   if(fields.length!==x.length)stop('sparse arrays or extra array properties are not JSON');
+   for(let i=0;i<x.length;i++)if(!Object.hasOwn(descriptors,String(i)))stop('sparse arrays or extra array properties are not JSON');
+  }
+  ancestors.add(x);
+  try{return array?'['+fields.sort((a,b)=>Number(a)-Number(b)).map(k=>stable(descriptors[k].value,ancestors)).join(',')+']':'{'+fields.sort().map(k=>JSON.stringify(k)+':'+stable(descriptors[k].value,ancestors)).join(',')+'}';}
+  finally{ancestors.delete(x);}
  }
  const clone=x=>JSON.parse(stable(x));
  function same(a,b,m){if(stable(a)!==stable(b))stop(m);}
  function keys(x,wanted){if(!x||typeof x!=='object'||Array.isArray(x))stop('object required');same(Object.keys(x).sort(),wanted.slice().sort(),'unexpected fields');}
  function record(x){keys(x,C.keys);same(x,C.validate(x),'noncanonical record');return clone(x);}
- function history(rows){if(!Array.isArray(rows))stop('history required');const ids=new Set();for(const r of rows){record(r);if(ids.has(r.revisionId))stop('duplicate ID');ids.add(r.revisionId);}C.merge(rows);return clone(rows).sort((a,b)=>a.revisionId<b.revisionId?-1:a.revisionId>b.revisionId?1:0);}
- function snapshot(x){keys(x,['revisions','meta']);if(!x.meta||typeof x.meta!=='object'||Array.isArray(x.meta))stop('metadata required');return {revisions:history(x.revisions),meta:clone(x.meta)};}
+ function history(rows){rows=clone(rows);if(!Array.isArray(rows))stop('history required');const ids=new Set();for(const r of rows){record(r);if(ids.has(r.revisionId))stop('duplicate ID');ids.add(r.revisionId);}C.merge(rows);return clone(rows).sort((a,b)=>a.revisionId<b.revisionId?-1:a.revisionId>b.revisionId?1:0);}
+ function snapshot(x){x=clone(x);keys(x,['revisions','meta']);if(!x.meta||typeof x.meta!=='object'||Array.isArray(x.meta))stop('metadata required');return {revisions:history(x.revisions),meta:clone(x.meta)};}
  const historyHash=rows=>H.digest(history(rows));
  function content(r){const {revisionId,parents,...rest}=r;return rest;}
  function expectedState(plan,phase){return {revisions:plan.afterRevisions,meta:{...plan.before.meta,[ARCHIVE]:plan.archive,[JOURNAL]:{format:'fold-local-repair-journal-v1',planId:plan.planId,repairId:plan.archive.manifest.repairId,phase}}};}

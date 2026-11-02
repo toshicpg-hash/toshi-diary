@@ -26,3 +26,27 @@ for(const [name,edit] of Object.entries({
 test('metadata captured in plan is pinned during apply; unknown changes fail classification',async()=>{const f=await fixture(),p=await prepare(f);f.live.meta.sheet='changed';assert.throws(()=>L.classify(p,f.live),/changed/);});
 test('non-null draft is preserved exactly when reviewed backup agrees',async()=>{const f=await fixture();f.live.meta.draft={fields:{body:'Fictional unsaved draft'},baseRevisionId:null,parents:null,at:'2030-01-03T00:00:00Z'};f.backup.draft=structuredClone(f.live.meta.draft);f.manifest.backupHash=await R.digest(f.backup);const p=await prepare(f);assert.deepEqual(L.expectedState(p,'verified').meta.draft,f.live.meta.draft);});
 test('draft with ambiguous replaced base is retained but repair must stop',async()=>{const f=await fixture();f.live.meta.draft={fields:{body:'Fictional draft'},baseRevisionId:f.manifest.target.before.revisionId};f.backup.draft=structuredClone(f.live.meta.draft);f.manifest.backupHash=await R.digest(f.backup);await assert.rejects(prepare(f),/draft refers/);});
+for(const [name,value] of Object.entries({
+ negativeZero:()=>-0,
+ nestedNegativeZero:()=>({values:[0,-0]}),
+ sparseArray:()=>Array(2),
+ sparseWithExtra:()=>Object.assign(Array(1),{extra:'preserve me'}),
+ extraArrayProperty:()=>Object.assign(['kept'],{extra:'must not disappear'}),
+ nonIndexNumericProperty:()=>Object.assign(['kept'],{'01':'must not disappear'}),
+ hiddenArrayProperty:()=>Object.defineProperty([],'hidden',{value:'must not disappear'}),
+ hiddenObjectProperty:()=>Object.defineProperty({},'hidden',{value:'must not disappear'}),
+ symbolKey:()=>({[Symbol('synthetic')]:'must not disappear'}),
+ arraySymbolKey:()=>Object.assign([],{[Symbol('synthetic')]:'must not disappear'}),
+ symbolValue:()=>Symbol('synthetic'),
+ undefinedValue:()=>({value:undefined}),
+ cycle:()=>{const x={};x.self=x;return x;}
+}))test('reject lossy live metadata: '+name,async()=>{const f=await fixture();f.live.meta.synthetic=value();await assert.rejects(prepare(f),/JSON/);});
+test('reject object/array/root accessors without invoking them',async()=>{
+ for(const kind of ['object','array','liveRoot']){
+  const f=await fixture();let reads=0;
+  if(kind==='liveRoot')Object.defineProperty(f.live,'meta',{enumerable:true,get(){reads++;return {};}});
+  else {const value=kind==='array'?['value']:{};Object.defineProperty(value,kind==='array'?'0':'field',{enumerable:true,get(){reads++;return 'must not run';}});f.live.meta.synthetic=value;}
+  await assert.rejects(prepare(f),/accessor/);assert.equal(reads,0);
+ }
+});
+test('dense JSON arrays and shared noncyclic values preserve order and content',async()=>{const f=await fixture(),shared={label:'synthetic'};f.live.meta.synthetic={dense:[null,false,0,'',[1,2],shared],alias:shared};const p=await prepare(f);assert.deepEqual(p.before.meta,f.live.meta);assert.deepEqual(p.before.meta.synthetic.dense,[null,false,0,'',[1,2],{label:'synthetic'}]);});

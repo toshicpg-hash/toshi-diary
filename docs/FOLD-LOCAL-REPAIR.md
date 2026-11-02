@@ -40,7 +40,7 @@ const plan = await L.prepare(manifest, google, savedFoldBackup,
 
 履歴hashはID順に並べ、recordの値は変えない。Google file/backup hashはJSON値全体（配列順を含む）。extra keys・非canonical record・重複ID・parent異常・元variant差・他87履歴の差・古いreplacement ID・88/94以外・6追加以外を拒否する。Googleの追加はA1とB0→B1→…→B5の鎖に限定する。
 
-live metaは専用画面でその場で読み、planIdへ結び付ける。backupのdraftと一致しない場合は停止。metaの未知JSON項目はそのまま保存する。非JSON型を勝手に変換せず拒否する。draftが置換対象Aの旧IDをbase/parentに持つ場合は意味が曖昧になるため停止し、原文を保持した別確認が必要。
+live metaは専用画面でその場で読み、planIdへ結び付ける。backupのdraftと一致しない場合は停止。metaの未知JSON項目はそのまま保存する。非JSON型を勝手に変換せず拒否する。`-0`、疎配列、配列の追加own property、symbol key/value、非enumerable property、accessor、循環参照も拒否する。accessorは評価せずdescriptorを検査する。通常の密なJSON配列は順序・値を保持する。draftが置換対象Aの旧IDをbase/parentに持つ場合は意味が曖昧になるため停止し、原文を保持した別確認が必要。
 
 `L.prepare` はI/Oなし。`L.classify(plan,current)` はbefore/applied/verifiedだけを許し、それ以外を拒否。`L.expectedState(plan,phase)` は合成検証用。`L.createAdapter({indexedDB, locks, assertSolo, sourceOrigin})` は依存注入できるadapterで、既定DB名は固定。
 
