@@ -1,5 +1,7 @@
 # 限定日記修復 — コピー検証候補（実運用未対応）
 
+追加候補：Google修復後のFold元ID1件だけを扱う [Foldローカルadapter](FOLD-LOCAL-REPAIR.md) を別途準備。未公開であり、本ページの旧93履歴コピー計画をそのまま実機へ入れるものではない。
+
 追補：実機adapterの優先設計は [2ID限定transaction案](DIARY-TARGETED-TRANSACTION-DESIGN.md)。下記の新世代切替は当初の方式案であり、比較用の詳細を [新世代設計](DIARY-ACTIVATION-DESIGN.md) に残す。現在も実機adapterは未実装で、コピーを通常restoreへ投入することは禁止。
 
 この変更は `diary-core.js` の14項目canonical、通常mergeの同ID不一致停止、IndexedDBのappend-only、Google同期、認証、権限を変更しない。配信bundleにも追加しない。実装は純粋なコピー変換APIとローカル専用UI。実Google/端末を修復したという意味ではない。mainへmerge・公開・実データ切替は別承認が必要。

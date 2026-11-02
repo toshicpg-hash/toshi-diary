@@ -1,0 +1,19 @@
+'use strict';
+const el=id=>document.getElementById(id),L=FoldLocalRepair;
+let plan=null,inputs=null,busy=false,controller=null,generation=0;
+async function solo(){
+ if(!navigator.serviceWorker||!navigator.locks)throw Error('このブラウザでは安全な専用修復を実行できません');
+ const registration=await navigator.serviceWorker.register('./census-worker.js',{scope:'./',updateViaCache:'none'});
+ if(!registration.active)await new Promise((resolve,reject)=>{const worker=registration.installing||registration.waiting;if(!worker)return reject(Error('他画面の確認を開始できません'));const timer=setTimeout(()=>reject(Error('他画面の確認がタイムアウトしました')),10000);worker.addEventListener('statechange',()=>{if(worker.state==='activated'){clearTimeout(timer);resolve();}});});
+ const otherWindows=await new Promise((resolve,reject)=>{const channel=new MessageChannel(),timer=setTimeout(()=>{channel.port1.close();reject(Error('他画面の確認がタイムアウトしました'));},5000);channel.port1.onmessage=e=>{clearTimeout(timer);channel.port1.close();if(!Number.isInteger(e.data?.otherWindows))reject(Error('他画面の確認に失敗しました'));else resolve(e.data.otherWindows);};registration.active.postMessage({type:'FOLD_REPAIR_WINDOWS'},[channel.port2]);});
+ if(otherWindows!==0)throw Error('このサイトの他の画面が '+otherWindows+' 件開いています。全て閉じてから再試行してください');
+}
+const adapter=L.createAdapter({assertSolo:solo});
+async function read(id){const f=el(id).files[0];if(!f)throw Error('必要なJSONファイルを選択してください');if(f.size>64*1024*1024)throw Error('ファイルが大きすぎます');return JSON.parse(await f.text());}
+function reset(){generation++;plan=null;inputs=null;el('apply').disabled=true;el('download').disabled=true;el('confirmation').value='';el('archive').value='';el('approved').checked=false;el('stopped').checked=false;el('status').textContent='';}
+function working(value){busy=value;for(const id of ['manifest','google','backup','archive','inspect','apply','download','confirmation','stopped','approved'])el(id).disabled=value||(id==='apply'||id==='download')&&!plan;}
+for(const id of ['manifest','google','backup'])el(id).addEventListener('change',reset);
+el('inspect').onclick=async()=>{if(busy)return;reset();const ticket=generation;working(true);try{inputs=await Promise.all(['manifest','google','backup'].map(read));const result=await adapter.inspect(...inputs);if(ticket!==generation){plan=null;inputs=null;return;}plan=result;el('status').textContent=JSON.stringify({planId:plan.planId,phase:plan.phase,before:88,after:94,replacements:1,additions:6,otherHistoriesUnchanged:87,liveMetaCaptured:true,googleLiveChecked:false,ownerScreenConfirmed:false},null,2);}catch(e){plan=null;el('status').textContent=e.message;}finally{working(false);}};
+el('download').onclick=()=>{if(!plan||busy)return;const url=URL.createObjectURL(new Blob([JSON.stringify(plan.archive,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='private-fold-original-archive.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+el('apply').onclick=async()=>{if(!plan||busy)return;if(!el('approved').checked||!el('stopped').checked){el('status').textContent='内容確認とwriter停止の両方が必要です';return;}working(true);controller=new AbortController();try{const archive=await read('archive');const result=await adapter.apply(...inputs,{backupReadback:archive,confirmedPlanId:el('confirmation').value,stoppedWriters:true,signal:controller.signal,onBlocked:message=>{el('status').textContent=message+'。修復は保留し、他画面を閉じた後に再照合してください';}});el('status').textContent='端末処理済み・再読込照合済み（94履歴）。Google最新再確認：未実施。本人画面確認：未実施。対応版の通常画面を開き直して確認してください。\n計画ID: '+result.planId;}catch(e){el('status').textContent=e.message+'。中止や通信断後は、同じファイルで読取り照合して結果を確認してください';}finally{controller=null;working(false);}};
+el('cancel').onclick=()=>{if(busy){generation++;controller?.abort();el('status').textContent='中止を要求しました。確定後の場合があるため、同じ計画で読戻し確認してください';}else reset();};
