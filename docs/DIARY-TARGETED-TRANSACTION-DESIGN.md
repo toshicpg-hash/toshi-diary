@@ -32,6 +32,8 @@
 - planId、executionId、固定operationId、参加者の全端末/profile/writer一覧、freeze receipt、実行前archive読戻し証跡、各段階の期待hash。
 - 本文等はprivateのみ。digestは署名・本人認証ではなく、確認内容を固定する識別子。
 
+履歴集合のbefore/after hashはrevisionIdのASCII順に並べた全recordと既存metaから計算し、IndexedDBの列挙順による誤差を避ける。各recordの14項目は変えず、重複IDはhash前に拒否する。原本snapshot/raw bytesは別途元のまま保全する。Googleのraw行座標・行順のhashは別であり、並べ替えない。
+
 実際のwrite setは保存元で異なる。fixtureの端末1はA0が既に一致するため置換0、B0未取得なので原初B0追加1＋新5履歴追加。端末2はA1→A0の置換1＋新5履歴追加。GoogleはA1→A0とB4→B0の置換2＋新5履歴追加。**「2IDだけ」と「全保存元で2行を書き換える」を混同しない。** いずれも完成は93履歴。
 
 ## archive・journal・gate

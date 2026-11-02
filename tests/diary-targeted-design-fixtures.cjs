@@ -2,6 +2,7 @@
 // Specification fixtures only. No adapter, transaction runner or network calls.
 // All IDs, text and statuses below are fictional, or derived from synthetic data.
 const base=require('./diary-repair-fixture.cjs'),R=require('../diary-repair.js'),C=require('../diary-core.js');
+const snapshotForHash=s=>({...s,revisions:[...s.revisions].sort((a,b)=>a.revisionId<b.revisionId?-1:a.revisionId>b.revisionId?1:0)});
 const cases=[
  {name:'happy',observation:'all exact after; both owner receipts',expected:'RESUME_ELIGIBLE',retry:false},
  {name:'google-not-sent',observation:'definitely not sent; exact before',expected:'REVALIDATE_BEFORE_SEND',retry:true},
@@ -25,7 +26,7 @@ module.exports=async function(){
  const targets=manifest.targets.map(t=>t.revisionId),participants={};
  for(const [name,before] of Object.entries(current)){
   const after=plan.copies[name],byId=new Map(before.revisions.map(r=>[r.revisionId,r]));
-  participants[name]={beforeHash:await R.digest(before),afterHash:await R.digest(after),
+  participants[name]={beforeHash:await R.digest(snapshotForHash(before)),afterHash:await R.digest(snapshotForHash(after)),
    allowedBefore:Object.fromEntries(targets.map(id=>[id,byId.has(id)?C.canonical(byId.get(id)):null])),
    replacements:after.revisions.filter(r=>byId.has(r.revisionId)&&C.canonical(byId.get(r.revisionId))!==C.canonical(r)).map(r=>r.revisionId),
    additions:after.revisions.filter(r=>!byId.has(r.revisionId)).map(r=>r.revisionId)};

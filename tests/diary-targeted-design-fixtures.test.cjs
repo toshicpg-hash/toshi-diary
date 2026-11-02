@@ -1,13 +1,14 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const fixture=require('./diary-targeted-design-fixtures.cjs'),R=require('../diary-repair.js'),C=require('../diary-core.js');
+const snapshotForHash=s=>({...s,revisions:[...s.revisions].sort((a,b)=>a.revisionId<b.revisionId?-1:a.revisionId>b.revisionId?1:0)});
 test('targeted design fixture has exact per-source hashes and bounded write sets',async()=>{
  const f=await fixture(),p=f.execution.participants;
  assert.deepEqual(p.device_one.replacements,[]);assert.equal(p.device_one.additions.length,6);
  assert.deepEqual(p.device_two.replacements,['target_A00']);assert.equal(p.device_two.additions.length,5);
  assert.deepEqual(p.google_copy.replacements,['target_A00','target_B00']);assert.equal(p.google_copy.additions.length,5);
  for(const [name,s] of Object.entries(p)){
-  assert.equal(s.beforeHash,await R.digest(f.current[name]));assert.equal(s.afterHash,await R.digest(f.plan.copies[name]));
+  assert.equal(s.beforeHash,await R.digest(snapshotForHash(f.current[name])));assert.equal(s.afterHash,await R.digest(snapshotForHash(f.plan.copies[name])));
   assert.notEqual(s.beforeHash,s.afterHash);
   assert(s.replacements.every(id=>f.manifest.targets.some(t=>t.revisionId===id)));
   assert.deepEqual(f.plan.copies[name].revisions.slice(0,86),f.current[name].revisions.slice(0,86));
