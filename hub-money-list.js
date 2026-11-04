@@ -6,14 +6,17 @@
  function totals(rows){
   const result={count:rows.length,income:{amount:0,unknown:0},payment:{amount:0,unknown:0},excluded:0};
   for(const row of rows){const v=row.value;if(row.status!=='ready'||!['income','payment'].includes(v?.kind)){result.excluded++;continue;}
-   if(Number.isSafeInteger(v.plannedAmount)&&v.plannedAmount>=0)result[v.kind].amount+=v.plannedAmount;else result[v.kind].unknown++;
+   if(Number.isSafeInteger(v.plannedAmount)&&v.plannedAmount>=0){const part=result[v.kind];if(part.amount!==null){const sum=part.amount+v.plannedAmount;part.amount=Number.isSafeInteger(sum)?sum:null;}}else result[v.kind].unknown++;
   }
   return result;
  }
- function model(rows,month,status='pending'){
+ function model(rows,month,status='pending',kind='all'){
   if(!['pending','settled','all'].includes(status))status='pending';
-  const result={dated:[],undated:[],undatedTotal:0};
+  if(!['all','income','payment'].includes(kind))kind='all';
+  const result={dated:[],undated:[],undatedTotal:0},cumulative=[];let cumulativeUndated=0;
   for(const row of rows){const value=row.value||{},dated=validDate(value.plannedDate);if(!dated)result.undatedTotal++;
+   if(kind!=='all'&&value.kind!==kind)continue;
+   if(value.done!==true){if(!dated)cumulativeUndated++;else if(!month||validMonth(month)&&value.plannedDate.slice(0,7)<=month)cumulative.push(row);}
    if(status==='pending'&&value.done===true||status==='settled'&&value.done!==true)continue;
    if(!dated){result.undated.push(row);continue;}
    if(month&&(!validMonth(month)||value.plannedDate.slice(0,7)!==month))continue;
@@ -21,6 +24,7 @@
   }
   result.dated.sort((a,b)=>a.value.plannedDate.localeCompare(b.value.plannedDate));
   result.summary=totals(result.dated);
+  result.cumulative={...totals(cumulative),undated:cumulativeUndated};
   return result;
  }
  return {model};

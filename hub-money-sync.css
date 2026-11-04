@@ -27,3 +27,9 @@
 #moneyLedgerView .money-record-actions{flex-wrap:nowrap}
 #moneyLedgerView .money-record-actions button{flex:0 0 auto;min-width:44px;min-height:44px;padding:8px;white-space:nowrap;overflow-wrap:normal}
 #moneyEditorInfo{overflow-wrap:anywhere}
+
+#moneyLedgerView .money-list-filters label:first-child{grid-column:1/-1}
+#moneyLedgerView .money-cumulative{margin:12px 0;padding:12px;border:1px solid #cbd5e1;border-radius:10px;background:#f0f9ff;overflow-wrap:anywhere}
+#moneyCumulativeTitle{font-size:1rem;margin:0 0 8px}#moneyCumulativeAmounts p{font-size:.95rem;font-weight:650;margin:5px 0;line-height:1.5}
+#moneyCumulativeNote{font-size:.8rem;line-height:1.6;margin:8px 0 0}
+@media(min-width:700px){#moneyLedgerView .money-list-filters{grid-template-columns:repeat(3,minmax(0,1fr))}#moneyLedgerView .money-list-filters label:first-child{grid-column:auto}}
