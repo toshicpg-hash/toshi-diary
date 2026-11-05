@@ -25,7 +25,9 @@
  }
  async function hash(value){return Array.from(new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256',new TextEncoder().encode(typeof value==='string'?value:canonical(value))))).map(x=>x.toString(16).padStart(2,'0')).join('');}
  function valueCheck(v){
-  if(!plain(v)||!['income','payment','unconfirmed'].includes(v.kind)||!text(v.title,300)||!v.title.trim()||!nullable(v.subjectMonth,month)||!nullable(v.plannedDate,date)||!nullable(v.plannedAmount,integer)||typeof v.done!=='boolean'||!Array.isArray(v.actuals)||v.actuals.length>1000||!['hub','rent-master','legacy-unclassified'].includes(v.source?.type))return fail('入出金の区分・対象月・予定日・金額・消込状態を確認してください');
+  if(!plain(v)||!['income','payment','unconfirmed'].includes(v.kind)||!text(v.title,300)||!v.title.trim()||!nullable(v.subjectMonth,month)||!nullable(v.plannedDate,date)||!nullable(v.plannedAmount,integer)||typeof v.done!=='boolean'||!Array.isArray(v.actuals)||v.actuals.length>1000||!['hub','rent-master','legacy-unclassified','nami-import'].includes(v.source?.type))return fail('入出金の区分・対象月・予定日・金額・消込状態を確認してください');
+  // Nami import (owner-approved in conversation): the import ID and approval note are kept with the record.
+  if(v.source.type==='nami-import'&&(!/^[A-Za-z0-9_.:-]{1,150}$/.test(v.source.importId||'')||!text(v.source.approvedAt,50)||!Number.isFinite(Date.parse(v.source.approvedAt))||!text(v.source.approvedNote||'',1000)||Object.keys(v.source).some(k=>!['type','importId','approvedAt','approvedNote'].includes(k))))return fail('ナミ取込の取込ID・確認日時を確認してください');
   const ids=new Set();for(const x of v.actuals){if(!plain(x)||!safeId(x.id)||ids.has(x.id)||!nullable(x.date,date)||!nullable(x.amount,integer)||!['unconfirmed','reported','bank-verified','ledger-verified'].includes(x.evidence?.status)||!text(x.evidence?.note||'',2000)||!text(x.evidence?.ref||'',2000))return fail('実績・確認根拠の形式または実績IDが不正です');ids.add(x.id);}
   if(v.businessKey!==null&&!text(v.businessKey,500))return fail('対応キーを確認してください');
   if(!text(v.note||'',4000)||canonical(v).length>40000)return fail('入出金の1件が大きすぎます。元の記録を保持して停止しました');return v;
