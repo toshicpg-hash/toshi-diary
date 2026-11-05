@@ -63,6 +63,9 @@ async function plan(input){
   if(state.rows.some(x=>x.recordId===recordId||x.value?.businessKey===c.value.businessKey||x.alternatives?.some(a=>a.value?.businessKey===c.value.businessKey))){results.push({importId:c.importId,result:'held',reason:'同じ記録ID・対応キーの記録があります',recordId});continue}
   const same=state.rows.find(x=>{const v=x.value||x.alternatives?.[0]?.value;return v&&v.kind===c.value.kind&&norm(v.title)===norm(c.value.title)&&(x.status!=='ready'||v.plannedDate===c.value.plannedDate&&v.plannedAmount===c.value.plannedAmount);});
   if(same){results.push({importId:c.importId,result:'held',reason:same.status!=='ready'?'競合・未確認の記録と件名が重なります':'同じ件名・予定日・金額の記録があります（二重の恐れ）',recordId});continue}
+  /* 件名が違っても、同じ区分・同じ予定額で、予定日が前後10日以内（予定日がなければ同じ対象月）の記録は、既存の予定に当たる恐れがある（実績の追加は第2段階） */
+  const near=state.rows.find(x=>x.status==='ready'&&x.value&&x.value.kind===c.value.kind&&x.value.plannedAmount===c.value.plannedAmount&&(x.value.plannedDate?Math.abs(Date.parse(x.value.plannedDate+'T00:00:00Z')-Date.parse(c.value.plannedDate+'T00:00:00Z'))<=10*86400000:x.value.subjectMonth===c.value.plannedDate.slice(0,7)));
+  if(near){results.push({importId:c.importId,result:'held',reason:'既存の予定と重なる恐れ（実績の追加は第2段階）。記録ID '+near.recordId,recordId,existingRecordId:near.recordId});continue}
   revisions.push(r);results.push({importId:c.importId,result:'add',reason:'',recordId,revisionId});
  }
  /* 足したあとの状態を、端末と同じ検証で作ってみる */

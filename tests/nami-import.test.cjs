@@ -75,3 +75,14 @@ test('端末：出どころ nami-import を受け付ける（取込ID・確認�
  assert.throws(()=>C.valueCheck({...v,source:{type:'nami-import',importId:'x1',approvedAt:approval.at,extra:1}}),/ナミ取込/);
  assert.throws(()=>C.valueCheck({...v,source:{type:'nami-other'}}),/区分/);
 });
+test('件名が違っても、同じ区分・同額・予定日が前後10日以内（または同じ対象月）の既存の予定があれば保留（二重計上を防ぐ）',async()=>{
+ /* 既存：移行した SYNTHETIC RENT（income・100・2026-11-30） */
+ const inp=await input([cand('n-near','2026-12-08','income','銀行明細の別表記の入金','100'),cand('n-far','2026-12-11','income','銀行明細の別表記の入金2','100'),cand('n-other-amount','2026-12-01','income','別の金額','101'),cand('n-other-kind','2026-12-01','payment','別の区分','100')],['n-near','n-far','n-other-amount','n-other-kind']);
+ const p=await I.plan(inp),by=id=>p.results.find(r=>r.importId===id);
+ assert.equal(by('n-near').result,'held');assert.match(by('n-near').reason,/既存の予定と重なる恐れ（実績の追加は第2段階）。記録ID stable-money/);assert.equal(by('n-near').existingRecordId,'stable-money');
+ assert.equal(by('n-far').result,'add','11 days apart');assert.equal(by('n-other-amount').result,'add');assert.equal(by('n-other-kind').result,'add');
+ /* 予定日のない既存の記録は、同じ対象月で判定する */
+ const v={...base(),title:'予定日なし',plannedDate:null,subjectMonth:'2027-01',plannedAmount:77,businessKey:'synthetic:undated'},r=await C.seal({format:C.FORMAT,version:1,recordId:'undated-1',revisionId:'u-1',parents:[],action:'create',device:flip,at,reason:'',value:v});
+ const inp2=await input([cand('n-month','2027-01-25','income','別表記','77')],['n-month']);inp2.historyRows=[...inp2.historyRows,C.toRow(r)];
+ const p2=await I.plan(inp2);assert.equal(p2.results[0].result,'held');assert.match(p2.results[0].reason,/記録ID undated-1/);
+});
