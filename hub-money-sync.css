@@ -38,3 +38,11 @@
 .money-nami-notice{margin:.5rem 0;padding:.5rem .75rem;border-radius:10px;background:#f5f3ff;color:#4c1d95;overflow-wrap:anywhere}
 .money-nami-info{overflow-wrap:anywhere}
 .money-nami-seen{min-height:44px;min-width:44px;margin:.25rem 0}
+/* A local reading mark is distinct from the green financial settlement badge. */
+.money-nami-local{display:table;padding:4px 8px;border-radius:6px;font-weight:650}
+.money-nami-local.is-seen{background:#e0f2fe;color:#075985}
+.money-nami-local.is-unseen{background:#fff7ed;color:#9a3412}
+.money-nami-find{padding:8px 0;border-top:1px solid #ddd6fe}
+.money-nami-find button{min-height:44px}
+#moneyNamiNotice details>summary{min-height:44px;align-content:center}
+#moneyLedgerView [data-money-record]{scroll-margin-top:12px}
