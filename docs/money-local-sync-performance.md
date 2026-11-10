@@ -1,4 +1,4 @@
-# お金の端末内処理改善（1.2.52候補・未公開）
+# お金の端末内処理改善（1.2.52）
 
 AI連絡箱の11/11 8:14、クロ経由のエジソン提案（番号280、同番号の別報告と区別）のE/F/Gに対応。基準mainは1.2.51、12eaf9f6c5deb2c890ec2c654e9a1321d3628a1d。実データ・認証・権限は変更しない。C（最新照合表示への置換）とD（履歴read回数削減）は含まない。
 
@@ -35,4 +35,4 @@ AI連絡箱の11/11 8:14、クロ経由のエジソン提案（番号280、同�
 - `node tests/money-sync-browser.cjs`：既存の合成2端末同期、競合、失敗、再実行、オフライン、保存保持、320/390/822pxに合格。
 - `node tests/nami-import-browser.cjs`：1.2.51の確認表示と探索の回帰に合格。
 - `MONEY_PREVIOUS_ROOT=/workspace/papa-money-performance MONEY_PREVIOUS_COMMIT=12eaf9f6c5deb2c890ec2c654e9a1321d3628a1d node tests/money-release-browser.cjs`：未改変旧版から通常終了後のオンライン/オフライン更新、controller/cache一致、履歴/localStorage等保持に合格。公開済み1.2.51bundle不変。
-- bundle整合とgit diff --checkを確認。公開前には最新mainとの競合確認と本人の公開承認が必要。実Google性能・実機表示は未検証。
+- bundle整合とgit diff --checkを確認。配信状態はGitHub Pagesのデプロイ結果で確認する。実Google性能・実機表示は未検証。
