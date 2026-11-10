@@ -3150,10 +3150,12 @@ try {
  // Nami import (owner-approved in conversation): a per-device "seen" mark only. It never changes totals, history or sync.
  const NAMI_SEEN='papa_money_nami_seen_v1';
  function namiSeen(){try{const v=JSON.parse(localStorage.getItem(NAMI_SEEN)||'[]');return new Set(Array.isArray(v)?v.filter(x=>typeof x==='string'):[]);}catch{return new Set();}}
- function markNamiSeen(recordId){const seen=namiSeen();seen.add(recordId);try{localStorage.setItem(NAMI_SEEN,JSON.stringify([...seen]));}catch{}rows();}
- function namiNotice(){let el=$('moneyNamiNotice');if(!el){el=node('p',undefined,'money-nami-notice');el.id='moneyNamiNotice';el.setAttribute('role','status');$('moneyLedgerSummary').after(el);}
-  const seen=namiSeen(),unseen=data.rows.filter(r=>r.status==='ready'&&r.value?.source?.type==='nami-import'&&!seen.has(r.recordId)).length;
-  el.hidden=!unseen;el.textContent=unseen?'ナミ取込 未確認 '+unseen+'件（トシさんが会話で確認して、ナミが取り込んだ記録です。合計には入っています。内容を見たら各記録の「確認済み」を押してください）':'';}
+ function markNamiSeen(recordId){const seen=namiSeen();seen.add(recordId);try{localStorage.setItem(NAMI_SEEN,JSON.stringify([...seen]));}catch{status('この端末の確認印を保存できませんでした。未確認のままです。');return;}rows();}
+ function openNamiRecord(row){const date=row.value?.plannedDate;$('moneySubjectMonth').value=C.date(date)?date.slice(0,7):'';$('moneyKindFilter').value='all';$('moneySettlementFilter').value='all';showLedger(true);rows();const target=[...ledger.querySelectorAll('[data-money-record]')].find(el=>el.dataset.moneyRecord===row.recordId);if(!target)return;let parent=target.parentElement;while(parent&&parent!==ledger){if(parent.tagName==='DETAILS')parent.open=true;parent=parent.parentElement;}target.tabIndex=-1;target.focus({preventScroll:true});target.scrollIntoView({block:'start'});}
+ function namiNotice(){let el=$('moneyNamiNotice');if(!el){el=node('section',undefined,'money-nami-notice');el.id='moneyNamiNotice';$('moneyLedgerSummary').after(el);}
+  const seen=namiSeen(),unseen=data.rows.filter(r=>r.status==='ready'&&r.value?.source?.type==='nami-import'&&!seen.has(r.recordId)),open=el.querySelector('details')?.open;el.replaceChildren();el.hidden=!data.rows.some(r=>r.value?.source?.type==='nami-import');
+  const summary=node('p','ナミ取込：この端末で未確認 '+unseen.length+'件（全期間）');summary.setAttribute('role','status');el.append(summary,node('p','確認印はこの端末だけのものです。取込承認・入出金の消込とは別で、金額や履歴は変わりません。','muted'));
+  if(unseen.length){const list=node('details');list.open=!!open;list.append(node('summary','未確認の項目を探す（'+unseen.length+'件）'));for(const row of unseen){const item=node('div',undefined,'money-nami-find'),v=row.value;item.append(node('p',v.title+'｜予定 '+(v.plannedDate||'不明')+'｜'+(v.withdrawal?'撤回':v.done?'消込済み':'未消込')));const button=node('button','記録を開く');button.type='button';button.setAttribute('aria-label',v.title+'の記録を開く');button.onclick=()=>openNamiRecord(row);item.append(button);list.append(item);}list.append(node('p','「記録を開く」で予定月を合わせ、入出金・消込フィルターを「すべて」にして表示します。','muted'));el.append(list);}}
  function identity(){return root.HubGoogle.account().email;}
  const reject=error=>status(error.message+'。元の記録は保持しています。');
  const click=(id,fn)=>$(id).onclick=()=>{try{Promise.resolve(fn()).catch(reject);}catch(error){reject(error);}};
@@ -3175,8 +3177,9 @@ try {
   if(!list.undated.length)unassigned.append(node('p','この入出金・消込状態に合う予定日不明の記録はありません。','muted'));
   function draw(visible,target){
   for(const row of visible){const v=row.value,box=node('article',undefined,'hub-row'+(v?.done?' done':''));box.dataset.moneyRecord=row.recordId;box.append(node('span',v?.kind==='income'?'入金':v?.kind==='payment'?'支払':'区分未確認','badge'),node('b',v?.title||'同時編集・履歴の確認が必要です'));
-   if(v?.source?.type==='nami-import'){const tag=node('span','ナミ取込','badge money-nami');box.append(tag,node('p','ナミ取込｜取込ID '+v.source.importId+'｜トシさん確認 '+new Date(v.source.approvedAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'}),'muted money-nami-info'));
-    if(row.status==='ready'&&!namiSeenNow.has(row.recordId)){const seen=node('button','確認済み');seen.type='button';seen.className='money-nami-seen';seen.setAttribute('aria-label','このナミ取込の記録を確認済みにする（この端末の印だけ。合計は変わりません）');seen.onclick=()=>markNamiSeen(row.recordId);box.append(seen);}}
+   if(v?.source?.type==='nami-import'){const tag=node('span','ナミ取込','badge money-nami');box.append(tag,node('p','取込ID '+v.source.importId+'｜取込承認日時 '+new Date(v.source.approvedAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'}),'muted money-nami-info'));
+    const acknowledged=namiSeenNow.has(row.recordId);box.append(node('p',acknowledged?'この端末で確認済み':'この端末で未確認','money-nami-local '+(acknowledged?'is-seen':'is-unseen')));
+    if(row.status==='ready'&&!acknowledged){const seen=node('button','この端末で確認する');seen.type='button';seen.className='money-nami-seen';seen.setAttribute('aria-label','このナミ取込の記録を確認済みにする（この端末の印だけ。合計は変わりません）');seen.onclick=()=>markNamiSeen(row.recordId);box.append(seen);}}
    box.append(node('p','予定 '+(v?.plannedDate||'未確認')+'｜'+yen(v?.plannedAmount??null)+'｜'+(row.status==='ready'?(v?.withdrawal?'撤回（支払済みではありません）':v?.done?'消込済み':'未消込'):'同時編集・履歴未確認'),'muted'));
    if(v?.done&&!v.subjectMonth)box.append(node('p','入出金は消込済み・請求対象月の分類は保留（推測していません）','muted'));
    if(v?.actuals?.length)box.append(node('p','実績：'+v.actuals.map(x=>(x.date||'日付未確認')+' '+yen(x.amount)+' '+x.evidence.status+(x.account?'｜実口座 '+x.account.label+' '+x.account.reference:'')).join('／'),'muted'));
