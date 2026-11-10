@@ -23,7 +23,13 @@
   const keys=Object.keys(value).sort();if(keys.some(k=>['__proto__','prototype','constructor'].includes(k)))return fail('保存できないキーがあります');
   return '{'+keys.map(k=>JSON.stringify(k)+':'+canonical(value[k])).join(',')+'}';
  }
- async function hash(value){return Array.from(new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256',new TextEncoder().encode(typeof value==='string'?value:canonical(value))))).map(x=>x.toString(16).padStart(2,'0')).join('');}
+ // Only successful digests of exact immutable strings are cached. Structural checks still run on every verify.
+ // Bound retained key text (~8 MiB UTF-16) and entries; no persistent cache or object-identity shortcuts.
+ const digests=new Map(),HASH_ENTRIES=4096,HASH_CHARS=4*1024*1024;let digestChars=0;
+ async function hash(value){const key=typeof value==='string'?value:canonical(value);if(digests.has(key)){const result=digests.get(key);digests.delete(key);digests.set(key,result);return result;}
+  const result=Array.from(new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256',new TextEncoder().encode(key)))).map(x=>x.toString(16).padStart(2,'0')).join('');
+  if(key.length<=HASH_CHARS&&!digests.has(key)){while(digests.size&&(digests.size>=HASH_ENTRIES||digestChars+key.length>HASH_CHARS)){const first=digests.keys().next().value;digestChars-=first.length;digests.delete(first);}digests.set(key,result);digestChars+=key.length;}return result;
+ }
  function valueCheck(v){
   if(!plain(v)||!['income','payment','unconfirmed'].includes(v.kind)||!text(v.title,300)||!v.title.trim()||!nullable(v.subjectMonth,month)||!nullable(v.plannedDate,date)||!nullable(v.plannedAmount,integer)||typeof v.done!=='boolean'||!Array.isArray(v.actuals)||v.actuals.length>1000||!['hub','rent-master','legacy-unclassified','nami-import'].includes(v.source?.type))return fail('入出金の区分・対象月・予定日・金額・消込状態を確認してください');
   // Nami import (owner-approved in conversation): the import ID and approval note are kept with the record.
