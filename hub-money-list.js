@@ -13,8 +13,8 @@
  function model(rows,month,status='pending',kind='all'){
   if(!['pending','settled','all'].includes(status))status='pending';
   if(!['all','income','payment'].includes(kind))kind='all';
-  const result={dated:[],undated:[],undatedTotal:0},cumulative=[];let cumulativeUndated=0;
-  for(const row of rows){const value=row.value||{},dated=validDate(value.plannedDate);if(!dated)result.undatedTotal++;
+  const result={dated:[],undated:[],withdrawn:[],undatedTotal:0},cumulative=[];let cumulativeUndated=0;
+  for(const row of rows){const value=row.value||{},dated=validDate(value.plannedDate);if(row.status==='ready'&&value.withdrawal){if(kind==='all'||value.kind===kind)result.withdrawn.push(row);continue;}if(!dated)result.undatedTotal++;
    if(kind!=='all'&&value.kind!==kind)continue;
    if(value.done!==true){if(!dated)cumulativeUndated++;else if(!month||validMonth(month)&&value.plannedDate.slice(0,7)<=month)cumulative.push(row);}
    if(status==='pending'&&value.done===true||status==='settled'&&value.done!==true)continue;
