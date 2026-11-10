@@ -33,13 +33,23 @@
   if(v.businessKey!==null&&!text(v.businessKey,500))return fail('対応キーを確認してください');
   if(!text(v.note||'',4000)||canonical(v).length>40000)return fail('入出金の1件が大きすぎます。元の記録を保持して停止しました');return v;
  }
- function revisionCheck(r){
-  if(!plain(r)||r.format!==FORMAT||r.version!==VERSION||!safeId(r.recordId)||!safeId(r.revisionId)||!Array.isArray(r.parents)||r.parents.length>50||r.parents.some(p=>!safeId(p)||p===r.revisionId)||new Set(r.parents).size!==r.parents.length||!['create','edit','settle','reopen','resolve','migrate','rent-refresh','withdraw'].includes(r.action)||!text(r.at,50)||!Number.isFinite(Date.parse(r.at))||!safeId(r.device?.id)||!text(r.device?.name,80)||!text(r.reason||'',2000))return fail('入出金の履歴ID・元履歴・端末・日時を確認できません');
+ function revisionCheck(r,batchId=null){
+  if(!plain(r)||r.format!==FORMAT||r.version!==VERSION||!safeId(r.recordId)||!safeId(r.revisionId)||!Array.isArray(r.parents)||r.parents.length>50||r.parents.some(p=>!safeId(p)||p===r.revisionId)||new Set(r.parents).size!==r.parents.length||!['create','edit','settle','reopen','resolve','migrate','rent-refresh','withdraw','batch'].includes(r.action)||!text(r.at,50)||!Number.isFinite(Date.parse(r.at))||!safeId(r.device?.id)||!text(r.device?.name,80)||!text(r.reason||'',2000))return fail('入出金の履歴ID・元履歴・端末・日時を確認できません');
+  if(r.action!=='batch'&&r.revisionId.startsWith('batch:')&&(!batchId||r.batchId!==batchId))return fail('一括履歴の名前空間は単独利用できません');
+  if(r.batchId!==undefined&&r.batchId!==batchId)return fail('一括更新の子履歴は単独で受け付けません');
+  if(r.action==='batch'){
+   if(batchId||r.batchId||r.recordId!==r.revisionId||!r.revisionId.startsWith('batch:')||r.parents.length||!plain(r.value)||Object.keys(r.value).some(k=>k!=='operations')||!Array.isArray(r.value?.operations)||!r.value.operations.length||r.value.operations.length>20||canonical({format:r.format,version:r.version,value:r.value,reason:r.reason||''}).length>40000)return fail('一括履歴の形式・容量を確認してください');
+   const ids=new Set();for(const [i,child]of r.value.operations.entries()){
+    if(child.action==='batch'||child.batchId!==r.revisionId||child.revisionId!==r.revisionId+':'+i||ids.has(child.recordId)||child.recordId.startsWith('batch:')||child.at!==r.at||canonical(child.device)!==canonical(r.device)||child.reason!==r.reason)return fail('一括更新の所属・対象・日時・承認が不一致です');
+    ids.add(child.recordId);revisionCheck(child,r.revisionId);
+   }
+   return r;
+  }
   valueCheck(r.value);if(r.action==='withdraw'&&!r.value.withdrawal||r.value.withdrawal&&!['withdraw','resolve'].includes(r.action))return fail('撤回は専用履歴で保持してください');if(!r.parents.length&&!['create','migrate','rent-refresh'].includes(r.action)||r.parents.length&&['create','migrate'].includes(r.action))return fail('履歴の親子関係を確認できません');return r;
  }
  function unsigned(r){const v={...r};delete v.fingerprint;return v;}
- async function seal(r){r={reason:'',...r};revisionCheck(r);return {...copy(unsigned(r)),fingerprint:await hash(unsigned(r))};}
- async function verify(r){revisionCheck(r);if(typeof r.fingerprint!=='string'||await hash(unsigned(r))!==r.fingerprint)return fail('同じ履歴IDの内容またはSHA256が一致しません');return r;}
+ async function seal(r,batchId=null){r={reason:'',...r};revisionCheck(r,batchId);return {...copy(unsigned(r)),fingerprint:await hash(unsigned(r))};}
+ async function verify(r,batchId=null){revisionCheck(r,batchId);if(r.action==='batch')for(const child of r.value.operations)await verify(child,r.revisionId);if(typeof r.fingerprint!=='string'||await hash(unsigned(r))!==r.fingerprint)return fail('同じ履歴IDの内容またはSHA256が一致しません');return r;}
  // Dependencies and duplicate keys only downgrade states, including after quarantine.
  function reconcileReferences(rows,issues){
   let changed;
@@ -59,9 +69,27 @@
    }
   }while(changed);
  }
+ async function sealBatch({id,operations,device,at,reason}){
+  const revisionId='batch:'+id,children=[];
+  for(const [i,r]of operations.entries())children.push(await seal({...r,revisionId:revisionId+':'+i,batchId:revisionId,device:copy(device),at,reason},revisionId));
+  return seal({format:FORMAT,version:VERSION,recordId:revisionId,revisionId,parents:[],action:'batch',device:copy(device),at,reason,value:{operations:children}});
+ }
+ function reconcileBatches(rows,issues,batches){
+  let changed;do{
+   const before=rows.map(r=>r.status).join('|');reconcileReferences(rows,issues);
+   for(const batch of batches){const members=batch.value.operations.map(c=>rows.find(r=>r.recordId===c.recordId));if(members.some(r=>!r||r.status!=='ready'))for(const row of members)if(row?.status==='ready'){row.status='conflict';issues.push({recordId:row.recordId,message:'一括更新の関連記録に競合・隔離・未確認があります'});}}
+   changed=before!==rows.map(r=>r.status).join('|');
+  }while(changed);
+ }
  function analyze(revisions){
-  const byId=new Map(),issues=[],blocked=new Set();
-  for(const r of revisions){try{revisionCheck(r);}catch(e){issues.push({recordId:r?.recordId||null,revisionId:r?.revisionId||null,message:e.message});if(r?.recordId)blocked.add(r.recordId);continue;}
+  const expanded=[],children=new Set(),wireSeen=new Map(),wireBlocked=new Set();
+  for(const r of revisions){const old=wireSeen.get(r?.revisionId);if(old&&canonical(old)!==canonical(r)){for(const v of [old,r]){if(v.action==='batch'&&Array.isArray(v.value?.operations))for(const c of v.value.operations)wireBlocked.add(c.recordId);else wireBlocked.add(v.recordId);}}else wireSeen.set(r?.revisionId,r);}
+
+  for(const r of revisions){if(r?.action==='batch'){try{revisionCheck(r);for(const c of r.value.operations){expanded.push(c);children.add(c);}}catch{expanded.push(r);}}else expanded.push(r);}
+  const batches=revisions.filter(r=>r?.action==='batch'&&r.value?.operations?.every(c=>children.has(c)));
+  revisions=expanded;
+  const byId=new Map(),issues=[...wireBlocked].map(recordId=>({recordId,message:'同じ封筒・履歴IDの内容が異なります'})),blocked=new Set(wireBlocked);
+  for(const r of revisions){try{revisionCheck(r,children.has(r)?r.batchId:null);}catch(e){issues.push({recordId:r?.recordId||null,revisionId:r?.revisionId||null,message:e.message});if(r?.recordId)blocked.add(r.recordId);continue;}
    const old=byId.get(r.revisionId);if(old&&canonical(old)!==canonical(r)){blocked.add(old.recordId);blocked.add(r.recordId);issues.push({recordId:r.recordId,revisionId:r.revisionId,message:'同じ履歴IDに違う内容があります。両方を保全し、この記録を未確認にしています'});}else byId.set(r.revisionId,r);
   }
   const ids=new Map();for(const r of byId.values()){if(!ids.has(r.recordId))ids.set(r.recordId,[]);ids.get(r.recordId).push(r);}
@@ -70,20 +98,21 @@
   const visiting=new Set(),visited=new Set();function visit(id){if(visiting.has(id))return false;if(visited.has(id))return true;visiting.add(id);const r=byId.get(id);let ok=true;for(const p of r?.parents||[])if(byId.has(p)&&!visit(p))ok=false;visiting.delete(id);visited.add(id);return ok;}
   for(const r of byId.values())if(!visit(r.revisionId)){blocked.add(r.recordId);issues.push({recordId:r.recordId,message:'履歴の循環を検出しました'});}
   const rows=[];for(const [id,history]of ids){const parents=new Set(history.flatMap(r=>r.parents)),heads=history.filter(r=>!parents.has(r.revisionId)).sort((a,b)=>a.revisionId.localeCompare(b.revisionId));let invalid=blocked.has(id);
-   for(const r of history){const ps=r.parents.map(p=>byId.get(p)).filter(Boolean);if(ps.some(p=>p.value._migration&&canonical(r.value._migration??null)!==canonical(p.value._migration))){invalid=true;issues.push({recordId:id,revisionId:r.revisionId,message:'移行元の対応履歴が変更されています'});}if(ps.some(p=>p.value.done)&&!r.value.done&&(r.action!=='reopen'&&r.action!=='resolve'||!r.reason?.trim())){invalid=true;issues.push({recordId:id,revisionId:r.revisionId,message:'消込済みを古い未消込で戻す変更を止めました'});}if(r.value.source.type==='rent-master'&&!['rent-refresh','resolve'].includes(r.action)){invalid=true;issues.push({recordId:id,revisionId:r.revisionId,message:'家賃正本の参照記録をHUBの編集として更新できません'});}}
+   for(const r of history){const ps=r.parents.map(p=>byId.get(p)).filter(Boolean);if(ps.some(p=>p.value.splitOrigin&&canonical(p.value.splitOrigin)!==canonical(r.value.splitOrigin??null))){invalid=true;issues.push({recordId:id,message:'分離元の対応は変更できません'});}if(ps.some(p=>p.value._migration&&canonical(r.value._migration??null)!==canonical(p.value._migration))){invalid=true;issues.push({recordId:id,revisionId:r.revisionId,message:'移行元の対応履歴が変更されています'});}if(ps.some(p=>p.value.done)&&!r.value.done&&(r.action!=='reopen'&&r.action!=='resolve'||!r.reason?.trim())){invalid=true;issues.push({recordId:id,revisionId:r.revisionId,message:'消込済みを古い未消込で戻す変更を止めました'});}if(r.value.source.type==='rent-master'&&!['rent-refresh','resolve'].includes(r.action)){invalid=true;issues.push({recordId:id,revisionId:r.revisionId,message:'家賃正本の参照記録をHUBの編集として更新できません'});}}
    for(const r of history){const ps=r.parents.map(p=>byId.get(p)).filter(Boolean);if((ps.some(p=>p.value.withdrawal)||r.action==='resolve'&&r.value.withdrawal)&&!(r.action==='resolve'&&r.reason?.trim()&&ps.some(p=>p.value.withdrawal&&canonical(p.value)===canonical(r.value)))){invalid=true;issues.push({recordId:id,message:'撤回済みの記録を変更できません'});}if(r.action==='withdraw'){const value=copy(r.value);delete value.withdrawal;if(ps.length!==1||ps[0].value.done||ps[0].value.actuals.length||canonical(value)!==canonical(ps[0].value)){invalid=true;issues.push({recordId:id,message:'実績なしの未消込予定だけを、値を変えず撤回できます'});}} }
    rows.push({recordId:id,status:invalid?'unverified':heads.length!==1?'conflict':'ready',heads:heads.map(r=>r.revisionId),value:heads.length===1?copy(heads[0].value):null,alternatives:heads.map(copy),history:history.map(copy)});
   }
-  reconcileReferences(rows,issues);
+  reconcileBatches(rows,issues,batches);
   rows.sort((a,b)=>a.recordId.localeCompare(b.recordId));return {rows,issues,revisionCount:byId.size,conflictCount:rows.filter(r=>r.status!=='ready').length};
  }
  async function audit(input){const valid=[],quarantine=[];for(const row of new Map(input.map(x=>[canonical(x),x])).values()){try{await verify(row);valid.push(copy(row));}catch(error){quarantine.push({recordId:row?.recordId||null,revisionId:row?.revisionId||null,message:error.message,raw:copy(row)});}}
-  const state=analyze(valid),bad=new Set(quarantine.map(x=>x.recordId).filter(Boolean));for(const row of state.rows)if(bad.has(row.recordId))row.status='unverified';for(const id of bad)if(!state.rows.some(r=>r.recordId===id))state.rows.push({recordId:id,status:'unverified',heads:[],value:null,alternatives:[],history:[]});reconcileReferences(state.rows,state.issues);state.rows.sort((a,b)=>a.recordId.localeCompare(b.recordId));
+  const state=analyze(valid),bad=new Set(quarantine.map(x=>x.recordId).filter(Boolean));for(const batch of valid.filter(r=>r.action==='batch'))if(bad.has(batch.recordId)||quarantine.some(q=>q.revisionId===batch.revisionId))for(const c of batch.value.operations)bad.add(c.recordId);for(const row of state.rows)if(bad.has(row.recordId))row.status='unverified';for(const id of bad)if(!state.rows.some(r=>r.recordId===id))state.rows.push({recordId:id,status:'unverified',heads:[],value:null,alternatives:[],history:[]});reconcileBatches(state.rows,state.issues,valid.filter(r=>r.action==='batch'));state.rows.sort((a,b)=>a.recordId.localeCompare(b.recordId));
   const unique=[...new Map(valid.map(r=>[r.revisionId+':'+r.fingerprint,r])).values()].sort((a,b)=>a.revisionId.localeCompare(b.revisionId)||a.fingerprint.localeCompare(b.fingerprint));
-  return {...state,conflictCount:state.rows.filter(r=>r.status!=='ready').length,revisions:unique,quarantine,checkpoint:await hash({format:FORMAT,version:VERSION,revisions:unique,quarantine:quarantine.map(q=>({revisionId:q.revisionId,recordId:q.recordId,raw:q.raw})).sort((a,b)=>canonical(a).localeCompare(canonical(b)))})};
+  return {...state,revisionCount:unique.length,batchIssueCount:quarantine.filter(q=>q.recordId?.startsWith('batch:')||q.revisionId?.startsWith('batch:')).length,conflictCount:state.rows.filter(r=>r.status!=='ready').length,revisions:unique,quarantine,checkpoint:await hash({format:FORMAT,version:VERSION,revisions:unique,quarantine:quarantine.map(q=>({revisionId:q.revisionId,recordId:q.recordId,raw:q.raw})).sort((a,b)=>canonical(a).localeCompare(canonical(b)))})};
  }
  function current(state,id){return state.rows.find(r=>r.recordId===id);}
  async function change(state,{recordId,revisionId,parents,value,action,device,at,reason=''}){
+  if(state.batchIssueCount)return fail('一括更新の履歴が未確認です。先に読戻してください');
   const before=current(state,recordId),expected=before?.heads||[];if(canonical([...parents].sort())!==canonical([...expected].sort()))return fail('別の編集があります。入力を保持して最新状態を確認してください');
   if(before&&!['ready','conflict'].includes(before.status))return fail('未確認の履歴があります。元の記録を保持して編集を停止しました');
   if(before?.status==='conflict'&&action!=='resolve')return fail('同時編集を確認してから統合してください');
@@ -126,5 +155,5 @@
   return {plans,aliases,sourceDrift,active:plans.length>0&&plans.every(p=>p.status==='ready')};
  }
 
- return {sampleHeads,planBody,prepareMigration,migrations,FORMAT,VERSION,HEADERS,SAMPLE_HEADERS,VIEW_HEADERS,SYNC_HEADERS,canonical,copy,hash,safeId,date,month,integer,valueCheck,revisionCheck,seal,verify,analyze,audit,current,change,toRow,fromRow,legacyValue,summary,viewRows,packSample,unpackSamples};
+ return {sealBatch,sampleHeads,planBody,prepareMigration,migrations,FORMAT,VERSION,HEADERS,SAMPLE_HEADERS,VIEW_HEADERS,SYNC_HEADERS,canonical,copy,hash,safeId,date,month,integer,valueCheck,revisionCheck,seal,verify,analyze,audit,current,change,toRow,fromRow,legacyValue,summary,viewRows,packSample,unpackSamples};
 });

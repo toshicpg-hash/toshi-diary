@@ -16,8 +16,9 @@ async function stable(input){
  return load(input);
 }
 function patch(before,request,operationId){
- if(!request||Array.isArray(request)||Object.keys(request).some(k=>!['corrections','actual','actualEdit','settle','withdrawal'].includes(k)))fail('操作の指定が不正です');
+ if(!request||Array.isArray(request)||Object.keys(request).some(k=>!['corrections','actual','actualEdit','settle','withdrawal','classificationPendingReason'].includes(k)))fail('操作の指定が不正です');
  if(before.withdrawal)fail('撤回済みの記録は変更できません');
+ if((request.actual||request.actualEdit||request.settle)&&!['income','payment'].includes(before.kind))fail('入金・支払の区分を確認するまで実績と消込は保留します');
  const after=C.copy(before),corrections=request.corrections||{};
  if(Object.keys(corrections).some(k=>!FIELDS.includes(k)))fail('承認対象外の訂正です');
  Object.assign(after,C.copy(corrections));
@@ -44,10 +45,14 @@ function patch(before,request,operationId){
   }
   if(request.settle!==undefined&&request.settle!==true)fail('消込取消は対象外です');
   if(request.settle){
-   if(!after.subjectMonth||!after.actuals.length||after.actuals.some(a=>!a.date||a.amount===null||!a.account?.label||!a.account?.reference||a.evidence.status==='unconfirmed'||!a.evidence.note?.trim()))fail('対象月・実績・実口座・根拠が未確認です');
+   if(!after.actuals.length||after.actuals.some(a=>!a.date||a.amount===null||!a.account?.label||!a.account?.reference||a.evidence.status==='unconfirmed'||!a.evidence.note?.trim()))fail('対象月・実績・実口座・根拠が未確認です');
+   if(!after.subjectMonth&&(!request.classificationPendingReason?.trim()||request.classificationPendingReason.length>500))fail('請求対象月の分類保留理由を明示してください');
+   if(after.subjectMonth&&request.classificationPendingReason)fail('既知の対象月を分類保留にはしません');
    after.done=true;
   }
  }
+ if(after.done&&!after.subjectMonth&&(request.actual||request.actualEdit||request.settle||before.subjectMonth&&Object.hasOwn(corrections,'subjectMonth'))&&!request.classificationPendingReason?.trim())fail('請求対象月の分類保留理由を明示してください');
+ if(request.classificationPendingReason&&(after.subjectMonth||typeof request.classificationPendingReason!=='string'||request.classificationPendingReason.length>500))fail('分類保留理由と対象月が矛盾しています');
  C.valueCheck(after);if(equal(after,before))fail('変更がありません');return after;
 }
 function compatible(input){
@@ -83,7 +88,7 @@ function approved(input,p){
 }
 async function revision(p,input){
  approved(input,p);
- return C.seal({format:C.FORMAT,version:1,recordId:p.recordId,revisionId:'nami-operation:'+p.operationId,parents:p.baseHeads,action:p.after.withdrawal?'withdraw':p.changes.settle?'settle':'edit',device:{id:'nami',name:'ナミ'},at:p.at,reason:'ナミ実績・撤回／予行 '+p.planHash+'／本人確認 '+input.approval.at+'／'+input.approval.note,value:p.after});
+ return C.seal({format:C.FORMAT,version:1,recordId:p.recordId,revisionId:'nami-operation:'+p.operationId,parents:p.baseHeads,action:p.after.withdrawal?'withdraw':p.changes.settle?'settle':'edit',device:{id:'nami',name:'ナミ'},at:p.at,reason:'ナミ実績・撤回／予行 '+p.planHash+'／本人確認 '+input.approval.at+'／'+input.approval.note+(p.changes.classificationPendingReason?'／請求対象月分類保留：'+p.changes.classificationPendingReason:''),value:p.after});
 }
 function bound(input,p){if(input.expectedOwner!==p.owner||input.expectedLedgerId!==p.ledgerId)fail('予行と本人・台帳が一致しません');}
 function preserved(state,p){return p.history.every(pin=>state.revisions.some(r=>r.revisionId===pin.id&&r.fingerprint===pin.hash));}
@@ -111,5 +116,5 @@ async function verify(input,p){
  if(!equal(notReady,p.existingNotReady))problems.push('競合・未確認の構成が変わりました');
  return {ok:!problems.length,status:problems.length?'unverified':'verified',operationId:p.operationId,recordId:p.recordId,checkpoint:state.checkpoint,problems,note:problems.length?'保存結果は未確認です。再作成・削除・自動再承認をしないでください。':'台帳の読戻し確認済み。端末への反映・未送信端末の状態は別確認です。'};
 }
-module.exports={plan,prepare,verify,FIELDS};
+module.exports={plan,prepare,verify,FIELDS,patch};
 if(require.main===module)(async()=>{const [mode,file,planned]=process.argv.slice(2);if(!['plan','prepare','verify'].includes(mode)||!file||mode!=='plan'&&!planned)fail('Usage: plan input.json | prepare input.json plan.json | verify input.json plan.json');const read=f=>JSON.parse(fs.readFileSync(f,'utf8')),result=await module.exports[mode](read(file),planned?read(planned):undefined);process.stdout.write(JSON.stringify(result,null,2)+'\n');if(result.ok===false)process.exitCode=2;})().catch(e=>{process.stderr.write(e.message+'\n');process.exitCode=1;});
