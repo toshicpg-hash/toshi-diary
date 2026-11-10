@@ -32,7 +32,7 @@ function patch(before,request,operationId){
    if(!found||!equal(found,edit.before)||!edit.changes||!Object.keys(edit.changes).length||Object.keys(edit).some(k=>!['id','before','changes'].includes(k))||Object.keys(edit.changes).some(k=>!['date','amount','account','evidence'].includes(k)))fail('訂正する実績ID・変更前・変更項目が一致しません');
    const changed={...found,...C.copy(edit.changes)};
    if(!C.date(changed.date)||!Number.isSafeInteger(changed.amount)||changed.amount<0||!changed.account?.label?.trim()||!changed.account?.reference?.trim()||!['reported','bank-verified','ledger-verified'].includes(changed.evidence?.status)||!changed.evidence?.note?.trim())fail('訂正後の実績・実口座・根拠を確定してください');
-   if(after.actuals.some(a=>a.id!==edit.id&&a.date===changed.date&&a.amount===changed.amount&&equal(a.account||null,changed.account)))fail('訂正後の実績が重複します');
+   if(after.actuals.some(a=>a.id!==edit.id&&a.date===changed.date&&a.amount===changed.amount&&(!a.account||equal(a.account,changed.account))))fail('訂正後の実績が重複します');
    after.actuals=after.actuals.map(a=>a.id===edit.id?changed:a);
   }
   if(request.actual){
