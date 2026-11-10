@@ -17,8 +17,8 @@ for(let i=1;i<parts.length;i+=2){
   parts[i+1]='try {\n'+source+suffix+(i+2<parts.length?'\n':'');
  }
 }
-const added=['hub-money-ledger.js','hub-money-store.js','hub-money-cloud.js','hub-money-list.js','hub-money-sync.js'];
+const added=['hub-money-ledger.js','hub-money-quarantine.js','hub-money-store.js','hub-money-cloud.js','hub-money-list.js','hub-money-sync.js'];
 const output=parts.join('')+'\n'+added.map(name=>';/* Source: '+name+' */\ntry {\n'+fs.readFileSync(path.join(root,name),'utf8')+'\n} catch (error) { setTimeout(function () { throw error; }, 0); }\n').join('\n');
 if(process.argv.includes('--write'))fs.writeFileSync(path.join(root,target),output);
 else if(fs.readFileSync(path.join(root,target),'utf8')!==output)throw Error('Bundle differs; run node scripts/build-bundle.cjs --write');
-console.log(target+': '+(process.argv.includes('--write')?'generated':'matches all 48 ordered sources'));
+console.log(target+': '+(process.argv.includes('--write')?'generated':'matches all 49 ordered sources'));
