@@ -102,16 +102,16 @@
   const values=[];for(let row=1;row<=properties.gridProperties.rowCount;row+=500){const range="'日記履歴'!A"+row+':N'+Math.min(row+499,properties.gridProperties.rowCount),j=await api(encodeURIComponent(id)+'/values/'+encodeURIComponent(range)+'?valueRenderOption=UNFORMATTED_VALUE');values.push(...(j.values||[]));}
   return C.fromRows(values);
  }
- async function synchronize(){
+ async function synchronize({writeRemote=true}={}){
   if(syncing||!ready)return {ok:false,message:'ダイアリーは準備中または同期中です'};const id=state.meta.sheet;if(!id){showError(Error('先に自分のダイアリー台帳を設定してください'));return {ok:false,message:'ダイアリー台帳が未設定です'};}
   const evidence={fetch:'not_attempted',save:'not_attempted',readback:'not_attempted',sheetId:id,revisionIds:[]};syncing=true;problem='';renderState();
   try{
    const remote=await readRemote(id);evidence.fetch='success';await write(remote);await reload();
    const remoteMap=new Map(remote.map(r=>[r.revisionId,r])),pending=state.revisions.filter(r=>!remoteMap.has(r.revisionId));
-   for(let offset=0;offset<pending.length;offset+=20){const batch=pending.slice(offset,offset+20);await api(encodeURIComponent(id)+'/values/'+encodeURIComponent("'日記履歴'!A:N")+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({majorDimension:'ROWS',values:batch.map(C.toRow)})});}
+   for(let offset=0;writeRemote&&offset<pending.length;offset+=20){const batch=pending.slice(offset,offset+20);await api(encodeURIComponent(id)+'/values/'+encodeURIComponent("'日記履歴'!A:N")+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({majorDimension:'ROWS',values:batch.map(C.toRow)})});}
    const verified=await readRemote(id),verifiedMap=new Map(verified.map(r=>[r.revisionId,r]));
-   for(const r of pending)if(!verifiedMap.has(r.revisionId)||C.canonical(r)!==C.canonical(verifiedMap.get(r.revisionId)))throw Error('Googleへの保存を確認できません。端末の記録は保持し、未同期のままにします');
-   await write(verified,{['remote:'+id]:{at:new Date().toISOString(),ids:[...verifiedMap.keys()]}});evidence.save='success';await reload();const disk=new Map(state.revisions.map(r=>[r.revisionId,r]));for(const r of verified)if(!disk.has(r.revisionId)||C.canonical(disk.get(r.revisionId))!==C.canonical(r))throw Error('端末のダイアリーの読み戻しが一致しません');evidence.readback='success';evidence.verifiedAt=new Date().toISOString();evidence.revisionIds=verified.map(r=>r.revisionId);channel?.postMessage('changed');return {ok:true,message:'ダイアリーの同期・読み取り照合が完了しました',evidence};
+   for(const r of (writeRemote?pending:[]))if(!verifiedMap.has(r.revisionId)||C.canonical(r)!==C.canonical(verifiedMap.get(r.revisionId)))throw Error('Googleへの保存を確認できません。端末の記録は保持し、未同期のままにします');
+   await write(verified,{['remote:'+id]:{at:new Date().toISOString(),ids:[...verifiedMap.keys()]}});evidence.save='success';await reload();if(!writeRemote&&C.conflicts(state.revisions).length)throw Error('日記に競合があります。復旧完了ではありません');const disk=new Map(state.revisions.map(r=>[r.revisionId,r]));for(const r of verified)if(!disk.has(r.revisionId)||C.canonical(disk.get(r.revisionId))!==C.canonical(r))throw Error('端末のダイアリーの読み戻しが一致しません');evidence.readback='success';evidence.verifiedAt=new Date().toISOString();evidence.revisionIds=verified.map(r=>r.revisionId);channel?.postMessage('changed');return {ok:true,message:'ダイアリーの同期・読み取り照合が完了しました',evidence};
   }catch(error){if(evidence.fetch!=='success')evidence.fetch='failed';else if(evidence.save!=='success')evidence.save='failed';else evidence.readback='failed';problem='同期失敗・未確認：'+error.message;try{await reload();}catch{} return {ok:false,message:problem,evidence};}
   finally{syncing=false;renderState();}
  }
@@ -137,7 +137,7 @@
    renderState();
   }catch(error){ready=false;problem='ダイアリーの保存領域を開けません：'+error.message+'。保存済みデータは削除していません。';renderState();}
  }
- globalThis.HubDiarySync={SCOPE:'https://www.googleapis.com/auth/spreadsheets',state:()=>({ready,configured:!!state.meta.sheet,busy:syncing||authorizing||saving}),syncWithGrant:async grant=>{
+ globalThis.HubDiarySync={recoverReadOnly:async(grant,id)=>{if(!ready||syncing||saving||authorizing)throw Error('日記は処理中です');if(state.meta.sheet&&state.meta.sheet!==id)throw Error('既存の日記接続先は変更しません');grant.assertValid();sessionGrant=grant;token=grant.access_token;expires=grant.expiresAt;await write([],{sheet:id});await reload();return synchronize({writeRemote:false});},SCOPE:'https://www.googleapis.com/auth/spreadsheets',state:()=>({ready,configured:!!state.meta.sheet,busy:syncing||authorizing||saving}),syncWithGrant:async grant=>{
   if(!ready||syncing||authorizing||saving)return {ok:false,message:'ダイアリーは準備中または処理中です'};
   if(!state.meta.sheet)return {ok:false,message:'ダイアリー台帳が未設定です。ダイアリー画面で設定してください'};
   if(!grant||typeof grant.access_token!=='string'||!grant.access_token||!Number.isFinite(grant.expiresAt)||grant.expiresAt<=Date.now()||!String(grant.scope||'').split(/\s+/).includes('https://www.googleapis.com/auth/spreadsheets'))return {ok:false,message:'ダイアリーのGoogle接続を確認できません。端末の記録は保持しています'};
