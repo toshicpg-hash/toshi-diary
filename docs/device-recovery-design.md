@@ -1,4 +1,4 @@
-# Device recovery — local candidate 1.2.53, not published
+# Device recovery — 1.2.53
 
 Source: AI連絡箱 row319, number289, 2026-11-11 10:41, クロ→コーディ. Authority is the owner's direct request passed through the parent, not the spreadsheet approval column.
 
@@ -22,9 +22,9 @@ Synthetic protocol/transport tests cover identity/privacy, reduced inventory, ma
 
 Remaining limits: a single asset above64MiB stops backup; the first backup can be slow and requires space. Nonempty destinations stop after archival for reconciliation. A matching persisted restore journal permits resuming verified local stages, but changes or an uncertain stage stop rather than guess. No existing snapshot is retroactively created for the already-lost data. Google login and selecting the correct device snapshot remain explicit steps. Site-data erasure removes local progress too; Drive backups remain separate.
 
-The candidate bundle/cache references are prepared locally, while the previously published1.2.52 bundle remains unchanged. Publishing and real connection/restore testing need separate authorization.
+The1.2.53 bundle/cache references are aligned, while the previously published1.2.52 bundle remains unchanged. Actual account connection and restoration testing require explicit authorization.
 
-No existing Drive backup or device has been modified. The current loss cannot be repaired retroactively by newly implemented backups. Existing cloud ledgers and preserved files remain the sources for the current recovery.
+Development/testing did not modify any existing Drive backup or device. The current loss cannot be repaired retroactively by newly implemented backups. Existing cloud ledgers and preserved files remain the sources for the current recovery.
 
 ## Prevention wording
 
@@ -37,3 +37,5 @@ Deleting Chrome browsing history and deleting cookies/site data are different op
 - Transport mocks reject64MiB+1 remote metadata before fetching the body, reject HTTP429 without retrying, and reject expired grants before network access. These complement prior privacy, uncertain-create and read-only-list tests.
 - Existing connected Drive metadata reads succeeded for the established ledgers and folder. Connector authorization is different from the app's browser OAuth grant; it does not verify app Drive uploads or restoration permissions.
 - Real app Google connection/upload remains untested. It requires an explicitly approved existing-account browser session and an isolated private test destination, with synthetic files only, kept separate from real Fold8/Flip8 backups. No such session was opened and no folder/file was created. Expected risks to check: consent cancellation, missing drive.file visibility, quota/permission failure and unknown upload outcomes. No additional scopes should be granted implicitly.
+
+Publication review also pins the local snapshot before upload and before final confirmation: concurrent local edits prevent claiming a complete backup. The owner authorized publication; actual device restoration is a separate operation.

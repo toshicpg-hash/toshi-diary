@@ -22,17 +22,18 @@ function reduction(previous,next){if(previous.owner!==next.owner||previous.devic
 /* Adapters must implement read-only inspection, append-only local staging, and
    explicit read-only cloud restore. A normal bidirectional sync is never used. */
 function create({cloud,local,onProgress=()=>{}}){let busy=false;async function locked(fn){if(busy)fail('控え・復元の処理中です');busy=true;try{return await fn();}finally{busy=false;}}
- async function backup(input,objects){return locked(async()=>{
+ async function backup(input,objects,{localFingerprint}={}){return locked(async()=>{
+  const assertLocal=async()=>{if(localFingerprint!==undefined&&(await local.inspect()).fingerprint!==localFingerprint)fail('控え保存中に端末の記録が変わりました。完全な控えとして確定しません');};await assertLocal();
   const m=await seal(input);if(await local.hasUnsentEdits())fail('未送信の編集があります。控えを完全とは扱いません');
   const prior=await cloud.list(m.owner,m.deviceName);for(const p of prior){privacy(p.meta,m.owner);const old=await verify(await cloud.getManifest(p.id));reduction(old,m);}
   await cloud.beginBackup();
   const expected=new Set(m.assets.flatMap(a=>[a.payloadHash,...a.blobHashes]));let n=0;
   for(const h of expected){const bytes=await objects(h);if(await hash(bytes)!==h)fail('資料原本のハッシュが一致しません');await cloud.putObject(h,bytes,m.owner);if(await hash(await cloud.getObject(h,m.owner))!==h)fail('資料の読み戻しが一致しません');onProgress({phase:'backup',completed:++n,total:expected.size});}
   // Fixed manifest ID: unknown POST outcomes are inspected before any retry.
-  const existing=await cloud.findManifest(m.id,m.owner);let file;
+  await assertLocal();const existing=await cloud.findManifest(m.id,m.owner);let file;
   if(existing){privacy(existing.meta,m.owner);if(!same(await cloud.getManifest(existing.id),m))fail('同じ控えIDに別の内容があります');file=existing;}
   else{try{file=await cloud.putManifest(m);}catch(e){const found=await cloud.findManifest(m.id,m.owner);if(!found)throw Error('控え保存の結果不明。元のIDで読み戻してください');file=found;}}
-  privacy(file.meta,m.owner);if(!same(await verify(await cloud.getManifest(file.id)),m))fail('控えの読み戻しを確認できません');await local.recordBackup({id:m.id,fileId:file.id,fingerprint:m.fingerprint});return {ok:true,id:m.id,fileId:file.id};
+  privacy(file.meta,m.owner);if(!same(await verify(await cloud.getManifest(file.id)),m))fail('控えの読み戻しを確認できません');await assertLocal();await local.recordBackup({id:m.id,fileId:file.id,fingerprint:m.fingerprint});return {ok:true,id:m.id,fileId:file.id};
  });}
  async function preview(fileId,owner){const meta=await cloud.metadata(fileId);privacy(meta,owner);const m=await verify(await cloud.getManifest(fileId));if(m.owner!==owner)fail('接続本人と控えが違います');return {manifest:m,local:await local.inspect(),fileId};}
  async function restore(plan,{confirmed=false}={}){return locked(async()=>{
