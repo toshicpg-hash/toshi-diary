@@ -29,3 +29,11 @@ No existing Drive backup or device has been modified. The current loss cannot be
 ## Prevention wording
 
 Deleting Chrome browsing history and deleting cookies/site data are different operations. Site data deletion may remove HUB local records and settings. Keep cookies/site data out of a history-only deletion. A persistence request cannot protect against explicit user deletion; no persistence permission is changed here. The exact deletion options used on the affected device have not been independently observed.
+
+## Additional verification (2026-11-11, synthetic only)
+
+- `node tests/device-recovery-upgrade.cjs`: unmodified published1.2.52 at aaa704af5df979997981139adff607407c958403 → candidate1.2.53. Normal and800ms worker-response delay. Old live tab keeps1.2.52 controller; after all tabs close normally, online reopen activates1.2.53 and offline reload works. Money history, Blob receipt and localStorage sentinel remain exact. No unregister, cache deletion or forced activation.
+- `RECOVERY_ASSET_BYTES=16777216 node tests/device-recovery-browser.cjs` and `RECOVERY_ASSET_BYTES=67108864 node tests/device-recovery-browser.cjs`:16MiB and64MiB synthetic receipt restoration through real isolated Chromium IndexedDB succeeds. This is not a phone memory/latency measurement, nor a large multi-file Drive upload test.
+- Transport mocks reject64MiB+1 remote metadata before fetching the body, reject HTTP429 without retrying, and reject expired grants before network access. These complement prior privacy, uncertain-create and read-only-list tests.
+- Existing connected Drive metadata reads succeeded for the established ledgers and folder. Connector authorization is different from the app's browser OAuth grant; it does not verify app Drive uploads or restoration permissions.
+- Real app Google connection/upload remains untested. It requires an explicitly approved existing-account browser session and an isolated private test destination, with synthetic files only, kept separate from real Fold8/Flip8 backups. No such session was opened and no folder/file was created. Expected risks to check: consent cancellation, missing drive.file visibility, quota/permission failure and unknown upload outcomes. No additional scopes should be granted implicitly.
