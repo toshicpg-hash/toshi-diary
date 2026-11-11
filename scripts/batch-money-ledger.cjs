@@ -11,17 +11,27 @@ async function load(i){
 }
 const hashPlan=async p=>{const v={...p};delete v.planHash;return C.hash(v);};
 function readers(i,report,state){
- const rs=i.compatibleReaders;if(!Array.isArray(rs)||rs.length!==2||new Set(rs.map(r=>r.deviceId)).size!==2||rs.some(r=>r.capability!=='money-batch-v1'||r.checkpoint!==state.checkpoint||!Number.isFinite(Date.parse(r.checkedAt))||!report.devices.some(d=>d.id===r.deviceId)))fail('両端末の対応版・基準履歴の確認が必要です');
+ const rs=i.compatibleReaders;if(!Array.isArray(rs)||rs.length!==2||new Set(rs.map(r=>r.deviceId)).size!==2||rs.some(r=>r.capability!==(i.requests?.some(x=>x.transfer)?'money-transfer-v1':'money-batch-v1')||r.checkpoint!==state.checkpoint||!Number.isFinite(Date.parse(r.checkedAt))||!report.devices.some(d=>d.id===r.deviceId)))fail('両端末の対応版・基準履歴の確認が必要です');
  return C.copy(rs);
 }
 function bind(i,p){if(i.expectedOwner!==p.owner||i.expectedLedgerId!==p.ledgerId)fail('本人・台帳IDが予行と違います');}
 function approval(i,p){const a=i.approval;if(i.cancelled)fail('取消済みです');if(!a||a.planHash!==p.planHash||a.operationId!==p.operationId||a.ledgerId!==p.ledgerId||a.owner!==p.owner||!Number.isFinite(Date.parse(a.at))||typeof a.note!=='string'||!a.note.trim()||a.note.length>700)fail('全変更に対する本人承認が一致しません');}
-function target(state,id){const r=C.current(state,id);if(!r||r.status!=='ready'||r.heads.length!==1||r.value.source.type==='rent-master'||r.value.withdrawal)fail('対象ID・履歴・正本・撤回状態を確認してください');return r;}
+function target(state,id){const r=C.current(state,id);if(!r||r.status!=='ready'||r.heads.length!==1||r.value.source.type==='rent-master'||r.value.withdrawal||r.value.kind==='transfer')fail('対象ID・履歴・正本・撤回状態を確認してください');return r;}
 function drafts(state,requests,id){
  if(!Array.isArray(requests)||!requests.length||requests.length>20)fail('一括対象は1〜20操作です');
  const out=[],used=new Set();
  const add=(recordId,parents,before,value,action)=>{if(used.has(recordId))fail('一括内で同じ記録を複数回操作できません');used.add(recordId);out.push({recordId,parents,before,value,action});};
  for(const [index,request]of requests.entries()){
+  if(request.transfer){
+   if(Object.keys(request).some(k=>k!=='transfer'))fail('振替と他操作は混在指定できません');
+   const t=C.copy(request.transfer),recordId='transfer:'+id+':'+index;
+   if(C.current(state,recordId))fail('振替IDは使用済みです');
+   const key='transfer:'+C.canonical([t.date,t.amount,t.from?.reference,t.to?.reference]);
+   if(state.rows.some(r=>r.value?.businessKey===key)||out.some(r=>r.value.businessKey===key))fail('同日・同額・同じ出金元と入金先の振替があります。別取引と推測しません');
+   const value={kind:'transfer',title:'口座間振替',subjectMonth:null,plannedDate:t.date,plannedAmount:t.amount,actuals:[],done:true,source:{type:'hub'},businessKey:key,note:'',transfer:t};
+   C.valueCheck(value);add(recordId,[],null,value,'create');continue;
+  }
+
   if(Object.keys(request).some(k=>!['recordId','changes','split'].includes(k))||!!request.changes===!!request.split)fail('個別変更または分離を指定してください');
   const row=target(state,request.recordId);
   if(request.changes){const value=E.patch(row.value,request.changes,id+':'+index);add(row.recordId,row.heads,row.value,value,value.withdrawal?'withdraw':request.changes.settle?'settle':'edit');continue;}
@@ -57,7 +67,7 @@ async function plan(i){
 }
 async function validate(i,p){
  if(p?.format!==FORMAT||p.version!==1||await hashPlan(p)!==p.planHash)fail('予行のハッシュが不一致です');bind(i,p);approval(i,p);
- if(!Array.isArray(p.compatibleReaders)||p.compatibleReaders.some(r=>r.checkpoint!==p.baseline||r.capability!=='money-batch-v1'))fail('端末確認が予行と不一致です');
+ if(!Array.isArray(p.compatibleReaders)||p.compatibleReaders.some(r=>r.checkpoint!==p.baseline||r.capability!==(p.requests?.some(x=>x.transfer)?'money-transfer-v1':'money-batch-v1')))fail('端末確認が予行と不一致です');
 }
 async function prepare(i,p){
  await validate(i,p);const {state}=await load(i),r=await envelope(p,i.approval),existing=state.revisions.find(x=>x.revisionId===r.revisionId);
