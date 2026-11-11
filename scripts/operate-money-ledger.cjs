@@ -16,6 +16,7 @@ async function stable(input){
  return load(input);
 }
 function patch(before,request,operationId){
+ if(before.kind==='transfer')fail('振替は専用手順で確認してください');
  if(!request||Array.isArray(request)||Object.keys(request).some(k=>!['corrections','actual','actualEdit','settle','withdrawal','classificationPendingReason'].includes(k)))fail('操作の指定が不正です');
  if(before.withdrawal)fail('撤回済みの記録は変更できません');
  if((request.actual||request.actualEdit||request.settle)&&!['income','payment'].includes(before.kind))fail('入金・支払の区分を確認するまで実績と消込は保留します');
