@@ -1,0 +1,9 @@
+/* Separate append-only recovery staging. Never replaces existing user stores. */
+(function(root){
+'use strict';const NAME='papa_device_recovery_v1';
+async function open(){return new Promise((ok,no)=>{const q=indexedDB.open(NAME,1);q.onupgradeneeded=()=>{q.result.createObjectStore('entries',{keyPath:'key'});};q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error);});}
+async function get(key){const db=await open();try{return await new Promise((ok,no)=>{const t=db.transaction('entries','readonly'),q=t.objectStore('entries').get(key);t.oncomplete=()=>ok(q.result?.value);t.onabort=t.onerror=()=>no(t.error);});}finally{db.close();}}
+async function put(key,value,{immutable=false}={}){const db=await open();try{await new Promise((ok,no)=>{const t=db.transaction('entries','readwrite'),s=t.objectStore('entries'),q=s.get(key);let failure;q.onsuccess=()=>{if(immutable&&q.result){failure=Error('保全済みの控えは上書きしません');t.abort();return;}s.put({key,value});};t.oncomplete=ok;t.onabort=t.onerror=()=>no(failure||t.error);});}finally{db.close();}}
+async function rawDB(name){if(!(await indexedDB.databases()).some(d=>d.name===name))return [];const db=await new Promise((ok,no)=>{const q=indexedDB.open(name);q.onupgradeneeded=()=>{q.transaction.abort();};q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error);});try{return await new Promise((ok,no)=>{const names=[...db.objectStoreNames];if(!names.length){ok([]);return;}const t=db.transaction(names,'readonly'),out=[];for(const name of names){const s=t.objectStore(name),v=s.getAll(),k=s.getAllKeys();out.push({name,keyPath:s.keyPath,rows:v,keys:k});}t.oncomplete=()=>ok(out.map(x=>({...x,rows:x.rows.result,keys:x.keys.result})));t.onabort=t.onerror=()=>no(t.error);});}finally{db.close();}}
+root.HubDeviceRecoveryStore={NAME,get,put,rawDB};
+})(globalThis);

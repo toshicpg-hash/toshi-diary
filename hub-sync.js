@@ -8,7 +8,7 @@
  function lock(){HubApp.refreshControls?.();globalThis.HubMoneySync?.refreshControls?.();for(const button of buttons){button.dataset.unverified=String(active);button.disabled=active||!HubApp.canWrite();}}
  async function syncAll(){
   if(active)return;
-  active=true;lock();let authorized=false;
+  active=true;lock();let authorized=false,recoveryGrant=null;
   try{
    await globalThis.HubMoneySync?.waitForIdle?.(()=>show([{key:'all',label:'同期開始',status:'waiting',message:'進行中のお金の同期・保存完了待ち…'}]));
    await HubApp.waitForSave?.(()=>show([{key:'all',label:'同期開始',status:'waiting',message:'保存完了待ち… 保存済み内容を確認してから同期します'}]));HubApp.checkWrite();proofStates=[];proofAttempt=globalThis.HubProof?await HubProof.begin():null;const diary=globalThis.HubDiarySync?.state();
@@ -20,9 +20,9 @@
     {key:'calendar',label:'予定・ToDo',eligible:calendarEligible,reason:'同期する期間を確認してください',scopes:HubGoogle.SCOPE.split(/\s+/),sync:()=>HubApp.syncCalendar({combined:true})},
     {key:'diary',label:'ダイアリー',eligible:diaryEligible,reason:!diary?.ready?'保存領域の準備中です。完了後にもう一度同期してください':!diary.configured?'台帳未設定です。ダイアリー画面で設定してください':'ダイアリーの処理中です。完了を待ってください',scopes:[globalThis.HubDiarySync?.SCOPE||''],sync:grant=>HubDiarySync.syncWithGrant(grant)},
     ...(moneyConfigured?[{key:'money',label:'お金',eligible:!!money.ready&&!money.busy,reason:'お金の処理中です。完了後に再試行してください',scopes:HubMoneySync.SCOPE.split(/\s+/),sync:grant=>HubMoneySync.syncWithGrant(grant)}]:[])
-   ].map(job=>({...job,wait:onWait=>HubApp.waitForSave?.(onWait)})),authorize:async eligible=>{const grant=await HubGoogle.connectForSync({calendar:eligible.some(x=>x.key==='calendar'),diary:eligible.some(x=>x.key==='diary'),money:eligible.some(x=>x.key==='money'),proof:globalThis.HubProof?.transmissionApproved()===true});authorized=true;return grant;},onChange:show});
+   ].map(job=>({...job,wait:onWait=>HubApp.waitForSave?.(onWait)})),authorize:async eligible=>{const grant=await HubGoogle.connectForSync({calendar:eligible.some(x=>x.key==='calendar'),diary:eligible.some(x=>x.key==='diary'),money:eligible.some(x=>x.key==='money'),proof:globalThis.HubProof?.transmissionApproved()===true});authorized=true;recoveryGrant=grant;return grant;},onChange:show});
   }catch(error){show([{key:'all',label:'同期開始',status:'failed',message:error.message}]);}
-  finally{finishing=true;lock();try{if(globalThis.HubProof)await HubProof.finish(proofAttempt,proofStates,{allowSend:authorized});}finally{proofAttempt=null;active=false;finishing=false;lock();}}
+  finally{finishing=true;lock();try{if(globalThis.HubProof)await HubProof.finish(proofAttempt,proofStates,{allowSend:authorized});}finally{proofAttempt=null;active=false;finishing=false;lock();if(authorized&&proofStates.length&&proofStates.every(s=>s.status==='success'))window.dispatchEvent(new CustomEvent('papa-sync-finished',{detail:{ok:true,grant:recoveryGrant}}));}}
  }
  for(const button of buttons)button.onclick=syncAll;
  for(const id of ['hubSync','diarySync']){const button=document.getElementById(id),original=button.onclick;button.onclick=function(e){if(!active)return original?.call(this,e);};}
