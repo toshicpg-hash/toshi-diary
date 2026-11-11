@@ -1,4 +1,4 @@
-# 口座間振替（1.2.55候補・未公開）
+# 口座間振替（1.2.55）
 
 銀行を操作せず、確認済みの口座間移動を記録する。1振替＝1記録であり、入金と支払の2記録にはしない。`kind:transfer`、`transfer:{date,amount,from:{label,reference},to:{label,reference},evidence:{status,note,ref?}}` に両側を保持する。正の整数額、実日付、異なる正規化済み口座参照、確認根拠が必須。口座参照は操作者が同一口座を同じ値へ照合する必要があり、口座名だけの自動同定はしない。
 
@@ -24,7 +24,7 @@
 - `node scripts/build-bundle.cjs`
 - `git diff --check`
 
-架空2振替、全口座差額0、対象外不変、集計分離、同額別口座、重複、再試行、取消、誤承認、並行変更、未着/破損封筒、旧1.2.54、320/390/822px・再読込・保存保持を確認。既存Googleコネクタの新規非公開架空台帳で、CLI plan/prepareの1封筒をappendCellsのstringValue（数式解釈なし）で保存、独立2回全体読戻し・verify成功、再prepareはalready/append:null。3記録・2履歴、対象外・設定・比較・照合表示不変。所有者のみ・shared=falseを前後確認。実機同期は未実施。旧1.2.54からの通常/800ms遅延/1200ms遅延＋bundle取得503中断→再開を検証。旧タブは旧bundle/旧controllerのままの場合があり成功扱いしない。install終了待ち、全タブ通常終了、オンライン再表示後に新controller/cache/bundleを確認し、オフラインでも履歴・Blob・localStorage保持を確認。cacheにbundleがあるだけではinstall完了を証明しないためテスト待機条件を修正。worker方式は変更なし。公開・本番反映は別判断。実口座や個人取引は試験に使用しない。
+架空2振替、全口座差額0、対象外不変、集計分離、同額別口座、重複、再試行、取消、誤承認、並行変更、未着/破損封筒、旧1.2.54、320/390/822px・再読込・保存保持を確認。既存Googleコネクタの新規非公開架空台帳で、CLI plan/prepareの1封筒をappendCellsのstringValue（数式解釈なし）で保存、独立2回全体読戻し・verify成功、再prepareはalready/append:null。3記録・2履歴、対象外・設定・比較・照合表示不変。所有者のみ・shared=falseを前後確認。実機同期は未実施。旧1.2.54からの通常/800ms遅延/1200ms遅延＋bundle取得503中断→再開を検証。旧タブは旧bundle/旧controllerのままの場合があり成功扱いしない。install終了待ち、全タブ通常終了、オンライン再表示後に新controller/cache/bundleを確認し、オフラインでも履歴・Blob・localStorage保持を確認。cacheにbundleがあるだけではinstall完了を証明しないためテスト待機条件を修正。worker方式は変更なし。本番反映は両端末の対応版・同期確認後に別判断。実口座や個人取引は試験に使用しない。
 
 ## 独立レビュー追補
 
