@@ -24,12 +24,12 @@ function revealWork(key){const item=items().find(x=>x._key===key&&['todo','task'
 function revealNewWork(syncOnly){const keys=syncOnly?new Set(syncNewWorkKeys):newWorkKeys;const target=K.workRows(items(),{},today()).find(x=>keys.has(x.stable_key));if(target)revealWork(target.stable_key);else status('追加・同期した作業は現在の一覧にありません。元の記録は保持しています。');}
 const knownProjects=new Set(['TOSHI','CPG','TASK','Trip','GOLF','誕生日','Anniversary']);
 function projectTag(item){const tag=node('span',item.project||'未分類','catbadge');if(knownProjects.has(item.project))tag.dataset.project=item.project;return tag;}
-function itemRow(item){
+function itemRow(item,calendarEntryView){
  const row=node('article',undefined,'hub-row'+(item.done?' done':''));row.dataset.itemKey=item._key;if(newWorkKeys.has(item._key))row.className+=' new-work';if(item._key===focusedWorkKey)row.className+=' work-highlight';if(knownProjects.has(item.project))row.dataset.project=item.project;
  if(['todo','task'].includes(item.type)){const check=button(item.done?'✓':'○',()=>toggle(item),true);check.className='check';if(item.googleUnverified){check.disabled=true;check.dataset.unverified='true';}check.setAttribute('aria-label',(item.done?'未完了に戻す: ':'完了にする: ')+item.title);row.append(check);}
- else row.append(node('div',item.allDay?'終日':item.time||'時刻なし','hub-time'));
+ else row.append(node('div',calendarEntryView?.continued_from_previous_day?(item.date===C.addDays(calendarEntryView.calendar_date,-1)?'前日から':'継続'):item.allDay?'終日':item.time||'時刻なし','hub-time'));
  const content=node('div',undefined,'hub-row-content');if(newWorkKeys.has(item._key))content.append(node('span',newWorkKeys.get(item._key)==='sync'?'同期で追加':'今回追加','hub-new-work-badge'));content.append(node('div',item.title||'(件名なし)','hub-title'));
- const timing=item.type==='todo'?'期限 '+(C.deadline(item)||'未設定')+(item.deadlineTime?' '+item.deadlineTime:'')+(C.workStart(item)&&C.workStart(item)!==C.deadline(item)?'｜開始 '+C.workStart(item):''):item.type==='task'?'期限なし'+(item.scheduledDate?'｜実施 '+item.scheduledDate:''):(item.time&&item.endTime?item.time+'〜'+item.endTime:'')+(item.endDate&&item.endDate!==item.date?'｜終了 '+item.endDate:'');
+ const timing=calendarEntryView?.continued_from_previous_day?calendarEntryView.time_label:item.type==='todo'?'期限 '+(C.deadline(item)||'未設定')+(item.deadlineTime?' '+item.deadlineTime:'')+(C.workStart(item)&&C.workStart(item)!==C.deadline(item)?'｜開始 '+C.workStart(item):''):item.type==='task'?'期限なし'+(item.scheduledDate?'｜実施 '+item.scheduledDate:''):(item.time&&item.endTime?item.time+'〜'+item.endTime:'')+(item.endDate&&item.endDate!==item.date?'｜終了 '+item.endDate:'');
  const meta=node('div',undefined,'muted');meta.append(projectTag(item),node('span',' '+timing+(item.source==='google'?'｜Google':'｜端末')));content.append(meta);
  if(item.completionCorrection)content.append(node('p','本人確認で完了を補正。'+(item.completedDate?'実施日 '+item.completedDate:'実施日は不明のまま保持')+'。Google側は変更していません。','muted'));
  if(item.completionConflict)content.append(node('p','端末に残る過去の完了記録を保持しています。Googleの未完了表示と不一致です。実施日は補っていません。','diary-warning'));
@@ -57,7 +57,7 @@ function moneyViewRow(entry){const row=node('article',undefined,'hub-row cash-en
 const unverified=x=>x.source==='google'&&x.googleUnverified===true;
 function calendarRows(date,money=displayMoneyItems()){const all=K.entries(items(),money,date);return {main:all.filter(x=>!unverified(x)),pending:all.filter(unverified)};}
 function appendUnverified(container,rows){const pending=rows.filter(unverified);if(!pending.length)return;const box=node('details',undefined,'hub-unverified');box.append(node('summary','Google未確認の保存済み記録 '+pending.length+'件'),node('p','今回の取得で確認できなかった記録です。通常一覧と分けて保管しています。元の記録は削除していません。','muted'));for(const entry of pending)box.append(calendarEntry(entry));container.append(box);}
-function calendarEntry(entry){if(entry.entry_kind==='money')return moneyViewRow(entry);const item=items().find(x=>x._key===entry.stable_key);return item?itemRow(item):node('p','記録の対応を確認できません','muted');}
+function calendarEntry(entry){if(entry.entry_kind==='money')return moneyViewRow(entry);const item=items().find(x=>x._key===entry.stable_key);return item?itemRow(item,entry):node('p','記録の対応を確認できません','muted');}
 function renderSelected(){return withViewData(buildSelected);}
 function buildSelected(){const {main:rows,pending}=calendarRows(selected),container=$('hubSelectedRows');$('hubSelectedTitle').textContent=selected+' の予定';container.replaceChildren();if(!rows.length)container.append(node('p',pending.length?'未確認の保存済み記録があります。下の別枠から開けます。':'予定・入出金はありません','empty'));else rows.forEach(x=>container.append(calendarEntry(x)));appendUnverified(container,pending);}
 function renderCalendar(){return withViewData(buildCalendar);}
