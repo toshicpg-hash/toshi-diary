@@ -75,8 +75,19 @@
     return row.type === 'todo' ? 'ToDo' : row.type === 'task' ? 'タスク' : '時刻なし';
   }
 
+  function continued(row, date) {
+    return row.type === 'event' && !row.allDay && time(row.time) && day(row.date) && row.date < date;
+  }
+
+  function continuedLabel(row, date) {
+    const start = row.date === C.addDays(date, -1) ? '前日' : row.date + ' ' ;
+    const end = row.endDate === date ? '' : (row.endDate || row.date) + ' ';
+    return start + row.time + (time(row.endTime) ? '〜' + end + row.endTime : 'から継続');
+  }
+
   function sortTime(row) {
     if (row.entry_kind === 'item' && row.allDay) return ['00:00', 0];
+    if (row.entry_kind === 'item' && continued(row, row.calendar_date)) return ['00:00', 1];
     if (time(row.time)) return [row.time, 1];
     if (row.entry_kind === 'item' && row.type === 'todo' && day(C.deadline(row)) && time(row.deadlineTime)) return [row.deadlineTime, 1];
     return ['24:00', 2];
@@ -101,7 +112,7 @@
     const result = [];
     items.forEach((row, index) => {
       if (!visible(row) || !coversDay(row, date)) return;
-      result.push({ ...row, stable_key: stableKey(row, index, 'item'), entry_kind: 'item', calendar_date: date, time_label: itemTimeLabel(row) });
+      result.push({ ...row, stable_key: stableKey(row, index, 'item'), entry_kind: 'item', calendar_date: date, time_label: continued(row, date) ? continuedLabel(row, date) : itemTimeLabel(row), continued_from_previous_day: continued(row, date) });
     });
     money.forEach((row, index) => {
       if (!visible(row) || !day(row.date) || row.date !== date) return;
