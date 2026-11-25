@@ -44,16 +44,19 @@ function authorize(required=SCOPE,{selectAccount=false,recheck=false}={}){
  if(selectAccount)invalidate();
  if(!recheck&&token&&Date.now()<expires&&covers(tokenScopes,required)){try{assertSession();return Promise.resolve();}catch{/* Revalidate a changed or unverified session. */}}
  const serial=generation;
+ // Reuse the explicitly confirmed local identity, never a returned token as identity.
+ // A fresh client without hints preserves deliberate account reselection.
+ const loginHint=selectAccount?{}:{login_hint:setting.email,hint:setting.email};
  // Start GIS synchronously in the click gesture. Never infer identity from a hint.
  const obtain=token&&Date.now()<expires&&covers(tokenScopes,required)?Promise.resolve():new Promise((resolve,reject)=>{
   if(!root.google?.accounts?.oauth2){reject(failure('GOOGLE_AUTH_UNAVAILABLE','Google認証を読み込めません。通信を確認して再度お試しください。'));return;}
   const fail=e=>reject(failure(e?.type==='popup_failed_to_open'?'GOOGLE_POPUP_BLOCKED':e?.type==='popup_closed'?'GOOGLE_POPUP_CLOSED':'GOOGLE_AUTH_FAILED','Google接続を完了していません。端末のデータは保持しています。'));
-  try{const client=root.google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:required,callback:r=>{
+  try{const client=root.google.accounts.oauth2.initTokenClient({...loginHint,client_id:GOOGLE_CLIENT_ID,scope:required,callback:r=>{
    if(serial!==generation){reject(failure('GOOGLE_ACCOUNT_CHANGED','本人設定が変わったため接続を停止しました'));return;}
    if(r.error){reject(failure(r.error==='access_denied'?'GOOGLE_ACCESS_DENIED':'GOOGLE_AUTH_FAILED','Google接続が許可されませんでした'));return;}
    if(typeof r.access_token!=='string'||!r.access_token||!Number.isFinite(Number(r.expires_in))||Number(r.expires_in)<=60||!covers(r.scope,required)){reject(failure('GOOGLE_AUTH_RESPONSE_INVALID','Google接続の応答・権限・有効期限を確認できません'));return;}
    token=r.access_token;expires=Date.now()+(Number(r.expires_in)-60)*1000;tokenScopes=r.scope;resolve();
-  },error_callback:fail});client.requestAccessToken({prompt:selectAccount?'select_account':''});}catch(e){fail(e);}
+  },error_callback:fail});client.requestAccessToken({...(!selectAccount?{login_hint:setting.email}:{}),prompt:selectAccount?'select_account':''});}catch(e){fail(e);}
  });
  const request=obtain.then(()=>{if(serial!==generation)throw failure('GOOGLE_ACCOUNT_CHANGED','本人設定が変わったため接続を停止しました');return verifyAccount(setting);}).catch(error=>{invalidate();throw error;});
  pending=request;request.then(()=>{if(pending===request)pending=null;},()=>{if(pending===request)pending=null;});return request;

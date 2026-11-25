@@ -13,11 +13,11 @@ const html=read('index.html').replace(/<script\b[^>]*>[\s\S]*?<\/script>/g,'').r
   await page.route('**/*',route=>route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:html}):route.fulfill({status:200,body:''}));
   await page.goto('http://localhost:8123/');
   await page.evaluate(()=>{
-   window.GOOGLE_CLIENT_ID='mock-client';window.requests=[];window.auth=[];window.finished=[];window.calendarRuns=0;
+   window.GOOGLE_CLIENT_ID='mock-client';window.requests=[];window.auth=[];window.authConfigs=[];window.finished=[];window.calendarRuns=0;
    window.connectedEmail='owner@example.test';window.verifyStatus=200;window.remoteRows=[];window.changeBeforeAppend=false;
    window.HubApp={checkWrite(){},canWrite:()=>true,syncCalendar:async()=>{calendarRuns++;await HubGoogle.read('2026-01-01','2026-01-02');return {ok:true};}};
    window.HubProof={begin:async()=>({id:'mock-attempt'}),finish:async(a,s,o)=>finished.push(o),transmissionApproved:()=>true};
-   window.google={accounts:{oauth2:{initTokenClient(c){return {requestAccessToken(o){auth.push(o);queueMicrotask(()=>c.callback({access_token:'mock-token',expires_in:3600,scope:'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file'}));}};}}}};
+   window.google={accounts:{oauth2:{initTokenClient(c){authConfigs.push({login_hint:c.login_hint,hint:c.hint});return {requestAccessToken(o){auth.push(o);queueMicrotask(()=>c.callback({access_token:'mock-token',expires_in:3600,scope:'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file'}));}};}}}};
    window.fetch=async(url,o={})=>{
     requests.push({url,method:o.method||'GET'});let value;
     if(url.includes('/calendarList/primary'))return {ok:verifyStatus===200,status:verifyStatus,json:async()=>({id:connectedEmail,primary:true,accessRole:'owner'})};
@@ -54,6 +54,7 @@ const html=read('index.html').replace(/<script\b[^>]*>[\s\S]*?<\/script>/g,'').r
   assert.deepEqual(await page.evaluate(()=>[auth[0].prompt,calendarRuns,remoteRows.length,finished.at(-1).allowSend]),['',1,1,true]);
   assert.match(await page.locator('#hubSyncAllStatus').textContent(),/同期が完了/);
   const disk=await page.evaluate(async()=>new ToshiDiaryStore().state());assert.equal(disk.revisions.length,1);
+  assert.equal(await page.evaluate(()=>auth[0].login_hint),'owner@example.test');assert.deepEqual(await page.evaluate(()=>authConfigs[0]),{login_hint:'owner@example.test',hint:'owner@example.test'});
   console.log('PASS: matching combined sync reads calendar and appends/verifies synthetic diary');
   await page.evaluate(()=>{connectedEmail='other@example.test';requests=[];});
   await page.evaluate(()=>HubSyncAll.sync());
@@ -75,7 +76,7 @@ const html=read('index.html').replace(/<script\b[^>]*>[\s\S]*?<\/script>/g,'').r
   await page.evaluate(()=>{verifyStatus=200;document.getElementById('hubGoogleAccountSelect').disabled=false;});
   await page.locator('#hubGoogleAccountSelect').click();
   await page.waitForFunction(()=>document.getElementById('hubGoogleAccountStatus').textContent.includes('一致を確認'));
-  assert.equal(await page.evaluate(()=>auth.at(-1).prompt),'select_account');
+  assert.equal(await page.evaluate(()=>auth.at(-1).prompt),'select_account');assert.equal(await page.evaluate(()=>Object.hasOwn(auth.at(-1),'login_hint')),false);assert.deepEqual(await page.evaluate(()=>Object.values(authConfigs.at(-1))),[undefined,undefined]);
   assert.equal(await page.evaluate(()=>remoteRows.length),1);
   console.log('PASS: explicit account selection verifies without running sync');
   await page.evaluate(async()=>{
@@ -99,5 +100,12 @@ const html=read('index.html').replace(/<script\b[^>]*>[\s\S]*?<\/script>/g,'').r
   assert.deepEqual(smokeErrors,[]);
   assert.match(await smoke.locator('#hubGoogleAccountStatus').textContent(),/入力・確認/);
   console.log('PASS: complete candidate bundle initializes with unset identity and no page errors');
+  const mockIdentity=async()=>smoke.evaluate(()=>{window.hints=[];window.google={accounts:{oauth2:{initTokenClient(c){return {requestAccessToken(o){hints.push({config:c.login_hint,request:o.login_hint,prompt:o.prompt});queueMicrotask(()=>c.callback({access_token:'synthetic-only',expires_in:3600,scope:c.scope}));}};}}}};window.fetch=async()=>({ok:true,json:async()=>({id:'owner@example.test',primary:true,accessRole:'owner'})});});
+  await mockIdentity();await smoke.evaluate(async()=>{HubGoogle.saveAccount('owner@example.test',{confirmed:true});await HubGoogle.connectForSync();});
+  const saved=await smoke.evaluate(()=>localStorage.getItem('toshi_google_sync_account_v1'));
+  await smoke.reload();await smoke.addScriptTag({content:read(/src="\.\/(hub-app-[^"]+\.js)"/.exec(read('index.html'))[1])});await mockIdentity();await smoke.evaluate(()=>HubGoogle.connectForSync());
+  assert.deepEqual(await smoke.evaluate(()=>hints),[{config:'owner@example.test',request:'owner@example.test',prompt:''}]);assert.equal(await smoke.evaluate(()=>localStorage.getItem('toshi_google_sync_account_v1')),saved);assert.equal(await smoke.evaluate(()=>JSON.stringify({...localStorage}).includes('synthetic-only')),false);
+  assert.deepEqual(smokeErrors,[]);console.log('PASS: full bundle reload reuses confirmed local account hint without persisting tokens');
+
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
