@@ -12,16 +12,16 @@ const KEY='toshi_google_sync_account_v1',EMAIL='owner@example.test';
 const CAL='https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events';
 const SHEET='https://www.googleapis.com/auth/spreadsheets',DRIVE='https://www.googleapis.com/auth/drive.file';
 function harness(code){
- const data=new Map([['existing-data','keep']]),requests=[],auth=[];
+ const data=new Map([['existing-data','keep']]),requests=[],auth=[],configs=[];
  let serial=0,now=Date.now();
- const h={data,requests,auth,identity:{id:EMAIL,primary:true,accessRole:'owner'},status:200,expires:3600,scope:CAL+' '+SHEET+' '+DRIVE};
- const ctx={GOOGLE_CLIENT_ID:'synthetic-client',HubDiarySync:{SCOPE:SHEET},AbortController,setTimeout,clearTimeout,URLSearchParams,console,Date:class extends Date{static now(){return now;}},crypto:{randomUUID:()=>String(++serial)},localStorage:{getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v)},google:{accounts:{oauth2:{initTokenClient(config){return {requestAccessToken(options){auth.push({scope:config.scope,...options});const respond=()=>config.callback(h.oauthError?{error:h.oauthError}:{access_token:'mock-token-'+auth.length,expires_in:h.expires,scope:h.scope});h.respond=respond;if(!h.deferOAuth)queueMicrotask(respond);}};}}}},fetch:async(url,options)=>{
+ const h={data,requests,auth,configs,identity:{id:EMAIL,primary:true,accessRole:'owner'},status:200,expires:3600,scope:CAL+' '+SHEET+' '+DRIVE};
+ const ctx={GOOGLE_CLIENT_ID:'synthetic-client',HubDiarySync:{SCOPE:SHEET},AbortController,setTimeout,clearTimeout,URLSearchParams,console,Date:class extends Date{static now(){return now;}},crypto:{randomUUID:()=>String(++serial)},localStorage:{getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v)},google:{accounts:{oauth2:{initTokenClient(config){configs.push(config);return {requestAccessToken(options){auth.push({scope:config.scope,...options});const respond=()=>config.callback(h.oauthError?{error:h.oauthError}:{access_token:'mock-token-'+auth.length,expires_in:h.expires,scope:h.scope});h.respond=respond;if(!h.deferOAuth)queueMicrotask(respond);}};}}}},fetch:async(url,options)=>{
   requests.push({url,options});
   if(h.networkError)throw Error('synthetic network failure');
   if(h.onFetch)return h.onFetch(url,options);
   return {ok:h.status===200,status:h.status,json:async()=>{if(h.badJSON)throw Error('JSON');return h.identity;}};
  }};
- vm.runInNewContext(code,ctx);h.api=ctx.HubGoogle;h.ctx=ctx;h.tick=()=>now+=3600000;
+ vm.runInNewContext(code,ctx);h.api=ctx.HubGoogle;h.ctx=ctx;h.reopen=()=>{vm.runInNewContext(code,ctx);h.api=ctx.HubGoogle;};h.tick=()=>now+=3600000;
  h.configure=(email=EMAIL)=>h.api.saveAccount(email,{confirmed:true});
  return h;
 }
@@ -45,6 +45,21 @@ for(const [name,code] of [['source',read('hub-google.js')],['bundle',bundled.sli
   assert.equal(h.requests.length,1);assert.ok(h.requests[0].url.includes('/calendarList/primary?'));
   assert.equal(h.requests[0].options.method,'GET');assert.equal(grant.assertValid(),true);
   assert.equal(JSON.stringify([...h.data]).includes('mock-token'),false);
+ });
+ test(name+': confirmed local account survives reopen and supplies both GIS hint locations',async()=>{
+  const h=harness(code);h.configure(' OWNER@example.test ');const before=JSON.stringify([...h.data]);
+  await h.api.connectForSync({money:true});h.reopen();await h.api.connectForSync({money:true});h.tick();await h.api.connectForSync({money:true});
+  assert.equal(h.auth.length,3);for(let i=0;i<3;i++){assert.equal(h.configs[i].login_hint,EMAIL);assert.equal(h.configs[i].hint,EMAIL);assert.equal(h.auth[i].login_hint,EMAIL);assert.equal(h.auth[i].prompt,'');}
+  assert.equal(JSON.stringify([...h.data]),before);assert.equal(h.requests.filter(r=>r.url.includes('/calendarList/primary')).length,3);
+ });
+ test(name+': explicit reselection removes hints from a fresh client and request',async()=>{
+  const h=harness(code);h.configure();await h.api.connectForSync();await h.api.selectAccount();
+  for(const k of ['login_hint','hint']){assert.equal(Object.hasOwn(h.configs[1],k),false);assert.equal(Object.hasOwn(h.auth[1],k),false);}
+  assert.equal(h.auth[1].prompt,'select_account');
+ });
+ test(name+': confirmed account change uses new hint; wrong account never becomes a hint',async()=>{
+  const h=harness(code);h.configure();h.identity.id='wrong@example.test';await assert.rejects(h.api.connectForSync(),{code:'GOOGLE_ACCOUNT_MISMATCH'});h.reopen();h.identity.id=EMAIL;await h.api.connectForSync();assert.equal(h.auth[1].login_hint,EMAIL);
+  h.configure('new@example.test');h.identity.id='new@example.test';await h.api.connectForSync();assert.equal(h.auth[2].login_hint,'new@example.test');
  });
  test(name+': valid token reused, but each sync rechecks identity; calendar read retains grant',async()=>{
   const h=harness(code);h.configure();await h.api.connectForSync({diary:true,proof:true});
