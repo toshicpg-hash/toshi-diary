@@ -1,0 +1,4 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),R=require('../hub-money-recovery.js');
+test('Public recovery module exposes verification only',()=>{assert.deepEqual(Object.keys(R).sort(),['FORMAT','auditEvents','inspect'].sort());const source=fs.readFileSync(path.join(__dirname,'../hub-money-recovery.js'),'utf8');for(const forbidden of [/async function prepare\(/,/async function execute\(/,/appendRow\(/,/claimAttempt\(/,/fetch\(/])assert(!forbidden.test(source));});
+test('Release excludes private recovery executors and intermediate bundle',()=>{for(const file of ['scripts/money-recovery-adapter.cjs','scripts/plan-money-row-recovery.cjs','hub-app-1.2.59.js'])assert(!fs.existsSync(path.join(__dirname,'..',file)));});
