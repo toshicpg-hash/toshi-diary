@@ -36,3 +36,6 @@
 .calendar-main-card button,.calendar-main-card a{touch-action:manipulation}
 
 #hubCompletion{box-sizing:border-box;overflow-wrap:anywhere}#hubCompletion input{box-sizing:border-box;max-width:100%;min-width:0}#hubCompletion button{min-height:44px;margin:6px 6px 0 0}#hubCompletion h2{font-size:20px}#hubCompletion p{line-height:1.6}
+
+/* 1.2.61 Googleまとめ同期の結果をたたむ */
+#hubSyncAllStatus .sync-all-fold>summary{min-height:44px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;cursor:pointer;font-weight:600}#hubSyncAllStatus .sync-all-fold .fold-hint{color:#2563eb;font-weight:400}#hubSyncAllStatus .sync-all-fold[open] .fold-hint{display:none}
